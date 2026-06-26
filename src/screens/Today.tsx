@@ -1,7 +1,7 @@
-import { useState } from "react";
 import { ACCENT, ACCENT_GRADIENT, HABIT_COLORS } from "../theme";
 import { haptic, notifySuccess } from "../telegram";
-import { HABITS, type Habit } from "../data";
+import { type Habit } from "../data";
+import { useStore } from "../store/store";
 import { Header } from "../components/Header";
 import { DaySelector } from "../components/DaySelector";
 import {
@@ -131,29 +131,19 @@ function HabitCard({ h, onToggle }: { h: Habit; onToggle: (id: string) => void }
 }
 
 export function Today() {
-  const [habits, setHabits] = useState<Habit[]>(HABITS);
+  const { state, dispatch } = useStore();
+  const habits = state.habits;
 
   const toggle = (id: string) => {
-    setHabits((prev) =>
-      prev.map((h) => {
-        if (h.id !== id) return h;
-        const done = !h.done;
-        if (done) notifySuccess();
-        else haptic("light");
-        return {
-          ...h,
-          done,
-          progress: done ? 1 : 0,
-          progressText: done ? "Выполнено" : "Сегодня",
-          streak: done ? h.streak + (h.streak === 0 ? 1 : 0) : h.streak,
-        };
-      })
-    );
+    const wasDone = habits.find((h) => h.id === id)?.done;
+    if (wasDone) haptic("light");
+    else notifySuccess();
+    dispatch({ type: "toggle_habit", id });
   };
 
   const doneCount = habits.filter((h) => h.done).length;
-  const allDone = doneCount === habits.length;
-  const pct = Math.round((doneCount / habits.length) * 100);
+  const allDone = habits.length > 0 && doneCount === habits.length;
+  const pct = habits.length ? Math.round((doneCount / habits.length) * 100) : 0;
 
   return (
     <div className="screen-pad">
@@ -260,6 +250,49 @@ export function Today() {
           <HabitCard key={h.id} h={h} onToggle={toggle} />
         ))}
       </div>
+
+      {habits.length === 0 && (
+        <div
+          style={{
+            display: "flex",
+            flexDirection: "column",
+            alignItems: "center",
+            textAlign: "center",
+            padding: "54px 24px",
+          }}
+        >
+          <div
+            style={{
+              width: 84,
+              height: 84,
+              borderRadius: 26,
+              background: "var(--card2)",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              color: "var(--hint)",
+              marginBottom: 18,
+            }}
+          >
+            <CheckSquare size={34} />
+          </div>
+          <div style={{ fontSize: 19, fontWeight: 900, color: "var(--text)" }}>
+            Пока нет привычек
+          </div>
+          <div
+            style={{
+              fontSize: 14,
+              fontWeight: 700,
+              color: "var(--hint)",
+              marginTop: 6,
+              maxWidth: 230,
+              lineHeight: 1.4,
+            }}
+          >
+            Добавьте первую привычку и начните свой стрик уже сегодня
+          </div>
+        </div>
+      )}
     </div>
   );
 }

@@ -1,5 +1,6 @@
 import { ACCENT_GRADIENT } from "../theme";
-import { ACTIVITIES } from "../data";
+import { useStore } from "../store/store";
+import { haptic } from "../telegram";
 import { Header } from "../components/Header";
 import { DaySelector } from "../components/DaySelector";
 import { Flame, Plus, Trash } from "../icons";
@@ -11,7 +12,9 @@ const SEGMENTS = [
 ];
 
 export function Activity() {
-  const total = ACTIVITIES.reduce((s, a) => s + a.kcal, 0);
+  const { state, dispatch } = useStore();
+  const activities = state.activities;
+  const total = activities.reduce((s, a) => s + a.kcal, 0);
   return (
     <div className="screen-pad">
       <Header
@@ -64,7 +67,7 @@ export function Activity() {
               {total}
             </div>
             <div style={{ fontSize: 13, fontWeight: 800, color: "var(--hint)", marginTop: 3 }}>
-              ккал потрачено · {ACTIVITIES.length} активности
+              ккал потрачено · {activities.length} активности
             </div>
           </div>
           <div
@@ -100,7 +103,7 @@ export function Activity() {
       </div>
 
       <div style={{ display: "flex", flexDirection: "column", gap: 10, marginBottom: 16 }}>
-        {ACTIVITIES.map((a) => (
+        {activities.map((a) => (
           <div
             key={a.id}
             style={{
@@ -168,7 +171,13 @@ export function Activity() {
                 {a.kcal} ккал
               </div>
             </div>
-            <div style={{ color: "var(--hint)", flex: "none", display: "flex", cursor: "pointer" }}>
+            <div
+              onClick={() => {
+                haptic("light");
+                dispatch({ type: "delete_activity", id: a.id });
+              }}
+              style={{ color: "var(--hint)", flex: "none", display: "flex", cursor: "pointer" }}
+            >
               <Trash size={18} />
             </div>
           </div>

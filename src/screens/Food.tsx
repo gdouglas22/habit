@@ -1,10 +1,13 @@
-import { FOODS, MACROS } from "../data";
+import { MACROS } from "../data";
+import { useStore } from "../store/store";
 import { Header } from "../components/Header";
 import { DaySelector } from "../components/DaySelector";
 import { Flame, Utensils, Plus } from "../icons";
 
 export function Food() {
-  const total = FOODS.reduce((s, f) => s + f.kcal, 0);
+  const { state } = useStore();
+  const foods = state.foods;
+  const total = foods.reduce((s, f) => s + f.kcal, 0);
   return (
     <div className="screen-pad">
       <Header
@@ -65,7 +68,7 @@ export function Food() {
             </div>
           </div>
           <div style={{ fontSize: 12, fontWeight: 800, color: "var(--hint)" }}>
-            {FOODS.length} записей
+            {foods.length} записей
           </div>
         </div>
         <div style={{ display: "flex", flexDirection: "column", gap: 9 }}>
@@ -110,7 +113,7 @@ export function Food() {
       </div>
 
       <div style={{ display: "flex", flexDirection: "column", gap: 10, marginBottom: 16 }}>
-        {FOODS.map((f) => (
+        {foods.map((f) => (
           <div
             key={f.id}
             style={{
