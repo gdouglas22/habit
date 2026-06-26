@@ -2,22 +2,22 @@ import { ACCENT, ACCENT_GRADIENT, HABIT_COLORS } from "../theme";
 import { haptic, notifySuccess } from "../telegram";
 import { type Habit } from "../data";
 import { useStore } from "../store/store";
+import { HABIT_ICONS } from "../habitMeta";
 import { Header } from "../components/Header";
 import { DaySelector } from "../components/DaySelector";
-import {
-  Check,
-  CheckSquare,
-  Dumbbell,
-  Star,
-  Flame,
-  ChevronDown,
-} from "../icons";
+import { Check, CheckSquare, Star, Flame, ChevronDown, Plus } from "../icons";
 
-const ICONS = { check: CheckSquare, dumbbell: Dumbbell, star: Star, flame: Flame };
-
-function HabitCard({ h, onToggle }: { h: Habit; onToggle: (id: string) => void }) {
+function HabitCard({
+  h,
+  onToggle,
+  onOpen,
+}: {
+  h: Habit;
+  onToggle: (id: string) => void;
+  onOpen: (id: string) => void;
+}) {
   const pal = HABIT_COLORS[h.color] ?? HABIT_COLORS.coral;
-  const Icon = ICONS[h.icon === "utensils" ? "check" : h.icon] ?? CheckSquare;
+  const Icon = HABIT_ICONS[h.icon] ?? CheckSquare;
   const pct = Math.round(h.progress * 100);
   return (
     <div
@@ -49,6 +49,11 @@ function HabitCard({ h, onToggle }: { h: Habit; onToggle: (id: string) => void }
         }}
       />
       <div
+        onClick={(e) => {
+          e.stopPropagation();
+          haptic("light");
+          onOpen(h.id);
+        }}
         style={{
           position: "relative",
           width: 44,
@@ -130,7 +135,7 @@ function HabitCard({ h, onToggle }: { h: Habit; onToggle: (id: string) => void }
   );
 }
 
-export function Today() {
+export function Today({ onEdit }: { onEdit: (id: string | null) => void }) {
   const { state, dispatch } = useStore();
   const habits = state.habits;
 
@@ -151,23 +156,47 @@ export function Today() {
         eyebrow="пятница, 26 июня"
         title="Сегодня"
         right={
-          <button
-            style={{
-              display: "flex",
-              alignItems: "center",
-              gap: 4,
-              background: "var(--card)",
-              border: "1px solid var(--line)",
-              borderRadius: 999,
-              padding: "8px 12px",
-              fontWeight: 800,
-              fontSize: 13,
-              color: "var(--text)",
-              cursor: "pointer",
-            }}
-          >
-            Все <ChevronDown size={15} />
-          </button>
+          <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+            <button
+              style={{
+                display: "flex",
+                alignItems: "center",
+                gap: 4,
+                background: "var(--card)",
+                border: "1px solid var(--line)",
+                borderRadius: 999,
+                padding: "8px 12px",
+                fontWeight: 800,
+                fontSize: 13,
+                color: "var(--text)",
+                cursor: "pointer",
+              }}
+            >
+              Все <ChevronDown size={15} />
+            </button>
+            <button
+              onClick={() => {
+                haptic("light");
+                onEdit(null);
+              }}
+              title="Добавить привычку"
+              style={{
+                width: 40,
+                height: 40,
+                border: "none",
+                borderRadius: 999,
+                background: ACCENT,
+                color: "#fff",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                cursor: "pointer",
+                boxShadow: "0 6px 16px -6px rgba(242,107,122,.8)",
+              }}
+            >
+              <Plus size={20} color="#fff" />
+            </button>
+          </div>
         }
       />
 
@@ -247,7 +276,7 @@ export function Today() {
 
       <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
         {habits.map((h) => (
-          <HabitCard key={h.id} h={h} onToggle={toggle} />
+          <HabitCard key={h.id} h={h} onToggle={toggle} onOpen={onEdit} />
         ))}
       </div>
 
@@ -291,6 +320,26 @@ export function Today() {
           >
             Добавьте первую привычку и начните свой стрик уже сегодня
           </div>
+          <button
+            onClick={() => {
+              haptic("light");
+              onEdit(null);
+            }}
+            style={{
+              marginTop: 22,
+              background: ACCENT,
+              color: "#fff",
+              border: "none",
+              borderRadius: 999,
+              padding: "14px 26px",
+              fontWeight: 900,
+              fontSize: 15,
+              cursor: "pointer",
+              boxShadow: "0 8px 20px -8px rgba(242,107,122,.7)",
+            }}
+          >
+            Добавить привычку
+          </button>
         </div>
       )}
     </div>
