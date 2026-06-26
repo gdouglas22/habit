@@ -1,0 +1,265 @@
+import { useState } from "react";
+import { ACCENT, ACCENT_GRADIENT, HABIT_COLORS } from "../theme";
+import { haptic, notifySuccess } from "../telegram";
+import { HABITS, type Habit } from "../data";
+import { Header } from "../components/Header";
+import { DaySelector } from "../components/DaySelector";
+import {
+  Check,
+  CheckSquare,
+  Dumbbell,
+  Star,
+  Flame,
+  ChevronDown,
+} from "../icons";
+
+const ICONS = { check: CheckSquare, dumbbell: Dumbbell, star: Star, flame: Flame };
+
+function HabitCard({ h, onToggle }: { h: Habit; onToggle: (id: string) => void }) {
+  const pal = HABIT_COLORS[h.color] ?? HABIT_COLORS.coral;
+  const Icon = ICONS[h.icon === "utensils" ? "check" : h.icon] ?? CheckSquare;
+  const pct = Math.round(h.progress * 100);
+  return (
+    <div
+      onClick={() => onToggle(h.id)}
+      style={{
+        position: "relative",
+        overflow: "hidden",
+        borderRadius: 18,
+        background: pal.light.track,
+        cursor: "pointer",
+        minHeight: 76,
+        display: "flex",
+        alignItems: "center",
+        padding: "14px 15px",
+        gap: 13,
+        boxShadow: "0 1px 2px rgba(60,40,30,.05)",
+        WebkitTapHighlightColor: "transparent",
+      }}
+    >
+      <div
+        style={{
+          position: "absolute",
+          left: 0,
+          top: 0,
+          bottom: 0,
+          width: `${pct}%`,
+          background: pal.light.fill,
+          transition: "width .55s cubic-bezier(.34,1.2,.5,1)",
+        }}
+      />
+      <div
+        style={{
+          position: "relative",
+          width: 44,
+          height: 44,
+          borderRadius: 13,
+          background: "var(--chip)",
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+          flex: "none",
+          color: "var(--text)",
+        }}
+      >
+        <Icon size={22} stroke={2} />
+      </div>
+      <div style={{ position: "relative", flex: 1, minWidth: 0 }}>
+        <div style={{ fontWeight: 800, fontSize: 16, color: "var(--text)", lineHeight: 1.15 }}>
+          {h.name}
+        </div>
+        <div
+          style={{
+            fontWeight: 800,
+            fontSize: 13,
+            color: "var(--text)",
+            opacity: 0.6,
+            marginTop: 3,
+          }}
+        >
+          {h.progressText}
+        </div>
+      </div>
+      <div
+        style={{
+          position: "relative",
+          display: "flex",
+          flexDirection: "column",
+          alignItems: "flex-end",
+          gap: 7,
+          flex: "none",
+        }}
+      >
+        {h.streak > 0 && (
+          <div
+            style={{
+              display: "flex",
+              alignItems: "center",
+              gap: 3,
+              background: "rgba(255,255,255,.7)",
+              borderRadius: 999,
+              padding: "3px 8px 3px 6px",
+              fontWeight: 900,
+              fontSize: 12,
+              color: "#C2410C",
+            }}
+          >
+            <Flame size={13} color="#F2994A" fill="#F2994A" stroke={1.5} />
+            {h.streak}
+          </div>
+        )}
+        {h.done && (
+          <div
+            style={{
+              width: 27,
+              height: 27,
+              borderRadius: 999,
+              background: "var(--text)",
+              color: "var(--bg)",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              animation: "pop .35s ease",
+            }}
+          >
+            <Check size={15} color="var(--bg)" stroke={3} />
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+export function Today() {
+  const [habits, setHabits] = useState<Habit[]>(HABITS);
+
+  const toggle = (id: string) => {
+    setHabits((prev) =>
+      prev.map((h) => {
+        if (h.id !== id) return h;
+        const done = !h.done;
+        if (done) notifySuccess();
+        else haptic("light");
+        return {
+          ...h,
+          done,
+          progress: done ? 1 : 0,
+          progressText: done ? "Выполнено" : "Сегодня",
+          streak: done ? h.streak + (h.streak === 0 ? 1 : 0) : h.streak,
+        };
+      })
+    );
+  };
+
+  const doneCount = habits.filter((h) => h.done).length;
+  const allDone = doneCount === habits.length;
+  const pct = Math.round((doneCount / habits.length) * 100);
+
+  return (
+    <div className="screen-pad">
+      <Header
+        eyebrow="пятница, 26 июня"
+        title="Сегодня"
+        right={
+          <button
+            style={{
+              display: "flex",
+              alignItems: "center",
+              gap: 4,
+              background: "var(--card)",
+              border: "1px solid var(--line)",
+              borderRadius: 999,
+              padding: "8px 12px",
+              fontWeight: 800,
+              fontSize: 13,
+              color: "var(--text)",
+              cursor: "pointer",
+            }}
+          >
+            Все <ChevronDown size={15} />
+          </button>
+        }
+      />
+
+      <DaySelector />
+
+      {allDone && (
+        <div
+          style={{
+            display: "flex",
+            alignItems: "center",
+            gap: 13,
+            background: ACCENT_GRADIENT,
+            borderRadius: 20,
+            padding: "16px 18px",
+            marginBottom: 14,
+            boxShadow: "0 8px 22px -8px rgba(242,107,122,.6)",
+            animation: "fadeup .4s ease",
+          }}
+        >
+          <div
+            style={{
+              width: 42,
+              height: 42,
+              borderRadius: 999,
+              background: "rgba(255,255,255,.25)",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              color: "#fff",
+              flex: "none",
+            }}
+          >
+            <Star size={22} color="#fff" fill="#fff" stroke={1.5} />
+          </div>
+          <div style={{ color: "#fff" }}>
+            <div style={{ fontSize: 18, fontWeight: 900, lineHeight: 1.1 }}>Идеальный день!</div>
+            <div style={{ fontSize: 13, fontWeight: 700, opacity: 0.9, marginTop: 2 }}>
+              Все привычки выполнены
+            </div>
+          </div>
+        </div>
+      )}
+
+      {!allDone && (
+        <div
+          style={{
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "space-between",
+            marginBottom: 12,
+          }}
+        >
+          <div style={{ fontSize: 13, fontWeight: 800, color: "var(--hint)" }}>
+            Выполнено {doneCount} из {habits.length}
+          </div>
+          <div
+            style={{
+              width: 120,
+              height: 6,
+              borderRadius: 999,
+              background: "var(--card2)",
+              overflow: "hidden",
+            }}
+          >
+            <div
+              style={{
+                height: "100%",
+                width: `${pct}%`,
+                background: ACCENT,
+                borderRadius: 999,
+                transition: "width .5s ease",
+              }}
+            />
+          </div>
+        </div>
+      )}
+
+      <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+        {habits.map((h) => (
+          <HabitCard key={h.id} h={h} onToggle={toggle} />
+        ))}
+      </div>
+    </div>
+  );
+}
