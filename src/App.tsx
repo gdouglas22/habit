@@ -48,7 +48,7 @@ export function App() {
         {screen === "today" && <Today onEdit={(id) => setEditor({ habitId: id })} />}
         {screen === "activity" && <Activity />}
         {screen === "food" && <Food />}
-        {screen === "calendar" && <Calendar />}
+        {screen === "calendar" && <Calendar onPick={() => setScreen("today")} />}
         {screen === "settings" && <Settings theme={theme} onTheme={setTheme} />}
       </div>
       <BottomNav screen={screen} onGo={setScreen} />

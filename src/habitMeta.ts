@@ -37,14 +37,6 @@ export const TYPE_OPTIONS: { key: HabitType; label: string }[] = [
 export const UNIT_OPTIONS = ["раз", "стаканов", "страниц", "минут", "км", "шагов"];
 export const DAY_LABELS = ["пн", "вт", "ср", "чт", "пт", "сб", "вс"];
 
-export function progressTextFor(h: Pick<Habit, "type" | "target" | "unit" | "done">): string {
-  if (h.done) return "Выполнено";
-  if (h.type === "count" || h.type === "time") {
-    return `0 / ${h.target ?? 1} ${h.unit ?? ""}`.trim();
-  }
-  return "Сегодня";
-}
-
 export function draftHabit(id: string): Habit {
   return {
     id,
@@ -57,9 +49,5 @@ export function draftHabit(id: string): Habit {
     days: [0, 1, 2, 3, 4, 5, 6],
     reminderOn: false,
     reminderTime: "09:00",
-    progress: 0,
-    progressText: "Сегодня",
-    streak: 0,
-    done: false,
   };
 }

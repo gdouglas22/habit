@@ -10,7 +10,6 @@ import {
   UNIT_OPTIONS,
   DAY_LABELS,
   draftHabit,
-  progressTextFor,
 } from "../habitMeta";
 import {
   hasTelegram,
@@ -51,11 +50,7 @@ export function HabitEditor({
       haptic("medium");
       return;
     }
-    const next: Habit = {
-      ...draft,
-      name,
-      progressText: progressTextFor(draft),
-    };
+    const next: Habit = { ...draft, name };
     dispatch(isEditing ? { type: "update_habit", habit: next } : { type: "add_habit", habit: next });
     notifySuccess();
     onClose();

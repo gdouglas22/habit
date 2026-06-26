@@ -1,23 +1,58 @@
+import { useState } from "react";
 import { ACCENT } from "../theme";
-import { WEEKDAYS } from "../data";
+import { useStore } from "../store/store";
+import { dayProgress, scheduledHabits, isDoneOn, streakOn } from "../store/selectors";
+import { haptic } from "../telegram";
+import {
+  RU_WEEKDAYS_SHORT,
+  monthGrid,
+  monthLabel,
+  dayOfMonth,
+  todayISO,
+  fromISO,
+} from "../date";
 import { ChevronLeft, ChevronRight, Flame, Star } from "../icons";
 
-// June 2026 starts on a Monday; 30 days.
-const FIRST_WEEKDAY = 0; // 0 = Monday
-const DAYS = 30;
-const TODAY = 26;
+export function Calendar({ onPick }: { onPick: () => void }) {
+  const { state, dispatch } = useStore();
+  const today = todayISO();
+  const init = fromISO(state.selectedDate);
+  const [year, setYear] = useState(init.getFullYear());
+  const [month, setMonth] = useState(init.getMonth());
 
-function dayPct(n: number): number {
-  if (n > TODAY) return 0;
-  // deterministic pseudo-progress for the skeleton
-  return [0, 0.3, 0.6, 1][n % 4];
-}
+  const cells = monthGrid(year, month);
 
-export function Calendar() {
-  const cells: (number | null)[] = [
-    ...Array(FIRST_WEEKDAY).fill(null),
-    ...Array.from({ length: DAYS }, (_, i) => i + 1),
-  ];
+  const step = (delta: number) => {
+    haptic("light");
+    let m = month + delta;
+    let y = year;
+    if (m < 0) {
+      m = 11;
+      y--;
+    } else if (m > 11) {
+      m = 0;
+      y++;
+    }
+    setMonth(m);
+    setYear(y);
+  };
+
+  const pick = (iso: string) => {
+    haptic("light");
+    dispatch({ type: "select_date", date: iso });
+    onPick();
+  };
+
+  // Stats
+  const bestStreak = Math.max(
+    0,
+    ...state.habits.map((h) => streakOn(state.entries, h, today))
+  );
+  const perfectDays = cells.filter((iso) => {
+    if (!iso || iso > today) return false;
+    const due = scheduledHabits(state.habits, iso);
+    return due.length > 0 && due.every((h) => isDoneOn(state.entries, h, iso));
+  }).length;
 
   return (
     <div className="screen-pad">
@@ -29,47 +64,37 @@ export function Calendar() {
           marginBottom: 16,
         }}
       >
-        <button style={navBtn}>
+        <button style={navBtn} onClick={() => step(-1)}>
           <ChevronLeft size={18} />
         </button>
-        <div style={{ fontSize: 20, fontWeight: 900, color: "var(--text)" }}>Июнь 2026</div>
-        <button style={navBtn}>
+        <div style={{ fontSize: 20, fontWeight: 900, color: "var(--text)" }}>
+          {monthLabel(year, month)}
+        </div>
+        <button style={navBtn} onClick={() => step(1)}>
           <ChevronRight size={18} />
         </button>
       </div>
 
-      <div
-        style={{
-          display: "grid",
-          gridTemplateColumns: "repeat(7,1fr)",
-          gap: 2,
-          marginBottom: 6,
-        }}
-      >
-        {WEEKDAYS.map((w) => (
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(7,1fr)", gap: 2, marginBottom: 6 }}>
+        {RU_WEEKDAYS_SHORT.map((w) => (
           <div key={w} style={{ textAlign: "center", fontSize: 11, fontWeight: 800, color: "var(--hint)" }}>
             {w}
           </div>
         ))}
       </div>
 
-      <div
-        style={{
-          display: "grid",
-          gridTemplateColumns: "repeat(7,1fr)",
-          gap: 5,
-          marginBottom: 24,
-        }}
-      >
-        {cells.map((n, i) => {
-          if (n === null) return <div key={`b${i}`} style={{ aspectRatio: "1" }} />;
-          const pct = dayPct(n);
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(7,1fr)", gap: 5, marginBottom: 24 }}>
+        {cells.map((iso, i) => {
+          if (iso === null) return <div key={`b${i}`} style={{ aspectRatio: "1" }} />;
+          const pct = dayProgress(state.habits, state.entries, iso);
           const r = 15;
           const c = 2 * Math.PI * r;
-          const isToday = n === TODAY;
+          const isToday = iso === today;
+          const selected = iso === state.selectedDate;
           return (
             <div
-              key={n}
+              key={iso}
+              onClick={() => pick(iso)}
               style={{
                 aspectRatio: "1",
                 position: "relative",
@@ -95,7 +120,7 @@ export function Calendar() {
                     transform="rotate(-90 17 17)"
                   />
                 )}
-                {isToday && <circle cx="17" cy="17" r="12" fill={ACCENT} opacity="0.12" />}
+                {(isToday || selected) && <circle cx="17" cy="17" r="12" fill={ACCENT} opacity="0.12" />}
               </svg>
               <span
                 style={{
@@ -106,10 +131,10 @@ export function Calendar() {
                   justifyContent: "center",
                   fontSize: 13,
                   fontWeight: 800,
-                  color: isToday ? ACCENT : "var(--text)",
+                  color: isToday || selected ? ACCENT : "var(--text)",
                 }}
               >
-                {n}
+                {dayOfMonth(iso)}
               </span>
             </div>
           );
@@ -117,8 +142,18 @@ export function Calendar() {
       </div>
 
       <div style={{ display: "flex", gap: 10 }}>
-        <StatCard icon={<Flame size={15} color="#F2994A" fill="#F2994A" stroke={1.5} />} label="Лучшая серия" value="21" unit="дней" />
-        <StatCard icon={<Star size={15} color="#F2994A" fill="#F2994A" stroke={1.5} />} label="Идеальных" value="8" unit="дней" />
+        <StatCard
+          icon={<Flame size={15} color="#F2994A" fill="#F2994A" stroke={1.5} />}
+          label="Лучшая серия"
+          value={String(bestStreak)}
+          unit="дней"
+        />
+        <StatCard
+          icon={<Star size={15} color="#F2994A" fill="#F2994A" stroke={1.5} />}
+          label="Идеальных"
+          value={String(perfectDays)}
+          unit="дней"
+        />
       </div>
     </div>
   );

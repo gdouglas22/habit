@@ -1,4 +1,5 @@
 // Mock data for the design skeleton ("болванка"). Swap for a real backend later.
+import { addDays, todayISO } from "./date";
 
 export type HabitIconKey =
   | "check"
@@ -13,6 +14,8 @@ export type HabitIconKey =
 // check = simple done/undone, count = numeric target, time = timed target
 export type HabitType = "check" | "count" | "time";
 
+// Habit *definition*. Per-day completion lives in the entries log, and
+// done/progress/streak are derived from it (see store/selectors).
 export interface Habit {
   id: string;
   name: string;
@@ -24,11 +27,10 @@ export interface Habit {
   days: number[]; // 0..6 (пн..вс)
   reminderOn: boolean;
   reminderTime?: string; // "HH:MM"
-  progress: number; // 0..1
-  progressText: string;
-  streak: number;
-  done: boolean;
 }
+
+// habitId -> ISO date -> value (check: 0/1, count/time: amount done that day)
+export type EntryLog = Record<string, Record<string, number>>;
 
 export interface ActivityRow {
   id: string;
@@ -61,10 +63,6 @@ export const HABITS: Habit[] = [
     days: ALL_DAYS,
     reminderOn: true,
     reminderTime: "10:00",
-    progress: 0.75,
-    progressText: "6 / 8 стаканов",
-    streak: 12,
-    done: false,
   },
   {
     id: "h2",
@@ -74,10 +72,6 @@ export const HABITS: Habit[] = [
     type: "check",
     days: ALL_DAYS,
     reminderOn: false,
-    progress: 1,
-    progressText: "Выполнено",
-    streak: 5,
-    done: true,
   },
   {
     id: "h3",
@@ -90,10 +84,6 @@ export const HABITS: Habit[] = [
     days: ALL_DAYS,
     reminderOn: true,
     reminderTime: "21:00",
-    progress: 0.4,
-    progressText: "12 / 30 страниц",
-    streak: 3,
-    done: false,
   },
   {
     id: "h4",
@@ -103,10 +93,6 @@ export const HABITS: Habit[] = [
     type: "check",
     days: ALL_DAYS,
     reminderOn: false,
-    progress: 1,
-    progressText: "Выполнено",
-    streak: 21,
-    done: true,
   },
   {
     id: "h5",
@@ -116,12 +102,30 @@ export const HABITS: Habit[] = [
     type: "check",
     days: ALL_DAYS,
     reminderOn: false,
-    progress: 0,
-    progressText: "Сегодня",
-    streak: 0,
-    done: false,
   },
 ];
+
+// Seed a completion log so the demo opens with visible streaks/progress.
+// Past days are filled to produce streaks; today is left partial.
+function seedEntries(): EntryLog {
+  const today = todayISO();
+  const log: EntryLog = { h1: {}, h2: {}, h3: {}, h4: {}, h5: {} };
+  const fillPast = (id: string, days: number, value: number) => {
+    for (let i = 1; i <= days; i++) log[id][addDays(today, -i)] = value;
+  };
+  fillPast("h1", 11, 8); // вода: 12-дневный стрик до сегодня
+  fillPast("h2", 4, 1); // зарядка: 5-дневный стрик (вкл. сегодня)
+  fillPast("h3", 2, 30); // книга: 3-дневный стрик
+  fillPast("h4", 20, 1); // медитация: 21-дневный стрик
+  // today partial / done
+  log.h1[today] = 6; // 6/8
+  log.h2[today] = 1; // выполнено
+  log.h3[today] = 12; // 12/30
+  log.h4[today] = 1; // выполнено
+  return log;
+}
+
+export const ENTRIES: EntryLog = seedEntries();
 
 export const ACTIVITIES: ActivityRow[] = [
   { id: "a1", emoji: "🏃", name: "Бег", note: "Утренняя пробежка", value: "5.2 км", kcal: 320 },
@@ -134,8 +138,6 @@ export const FOODS: FoodRow[] = [
   { id: "f2", emoji: "🍎", name: "Яблоко", kcal: 95 },
   { id: "f3", emoji: "🍳", name: "Омлет", note: "Завтрак", kcal: 310 },
 ];
-
-export const WEEKDAYS = ["пн", "вт", "ср", "чт", "пт", "сб", "вс"];
 
 export const MACROS = [
   { label: "Б", pct: "62%", color: "#58B978", value: "78 г" },

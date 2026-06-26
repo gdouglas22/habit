@@ -1,18 +1,10 @@
 import { ACCENT } from "../theme";
-import { WEEKDAYS } from "../data";
+import { useStore } from "../store/store";
+import { dayProgress } from "../store/selectors";
+import { haptic } from "../telegram";
+import { RU_WEEKDAYS_SHORT, weekDates, dayOfMonth, todayISO } from "../date";
 
-// Week strip with a progress ring around each day number.
-const DATA = [
-  { num: 22, pct: 1 },
-  { num: 23, pct: 0.8 },
-  { num: 24, pct: 1 },
-  { num: 25, pct: 0.4 },
-  { num: 26, pct: 0.6, today: true },
-  { num: 27, pct: 0 },
-  { num: 28, pct: 0 },
-];
-
-function Ring({ pct, today }: { pct: number; today?: boolean }) {
+function Ring({ pct, highlight }: { pct: number; highlight?: boolean }) {
   const r = 17;
   const c = 2 * Math.PI * r;
   return (
@@ -32,53 +24,66 @@ function Ring({ pct, today }: { pct: number; today?: boolean }) {
           transform="rotate(-90 19 19)"
         />
       )}
-      {today && <circle cx="19" cy="19" r="14" fill={ACCENT} opacity="0.12" />}
+      {highlight && <circle cx="19" cy="19" r="14" fill={ACCENT} opacity="0.12" />}
     </svg>
   );
 }
 
 export function DaySelector() {
+  const { state, dispatch } = useStore();
+  const today = todayISO();
+  const days = weekDates(state.selectedDate);
+
   return (
     <div style={{ display: "flex", gap: 4, marginBottom: 18 }}>
-      {DATA.map((d, i) => (
-        <div
-          key={d.num}
-          style={{
-            flex: 1,
-            display: "flex",
-            flexDirection: "column",
-            alignItems: "center",
-            gap: 7,
-            cursor: "pointer",
-          }}
-        >
-          <span style={{ fontSize: 11, fontWeight: 800, color: "var(--hint)" }}>
-            {WEEKDAYS[i]}
-          </span>
+      {days.map((iso, i) => {
+        const selected = iso === state.selectedDate;
+        const isToday = iso === today;
+        const pct = dayProgress(state.habits, state.entries, iso);
+        return (
           <div
+            key={iso}
+            onClick={() => {
+              haptic("light");
+              dispatch({ type: "select_date", date: iso });
+            }}
             style={{
-              position: "relative",
-              width: 38,
-              height: 38,
+              flex: 1,
               display: "flex",
+              flexDirection: "column",
               alignItems: "center",
-              justifyContent: "center",
+              gap: 7,
+              cursor: "pointer",
             }}
           >
-            <Ring pct={d.pct} today={d.today} />
-            <span
+            <span style={{ fontSize: 11, fontWeight: 800, color: "var(--hint)" }}>
+              {RU_WEEKDAYS_SHORT[i]}
+            </span>
+            <div
               style={{
                 position: "relative",
-                fontSize: 14,
-                fontWeight: 800,
-                color: d.today ? ACCENT : "var(--text)",
+                width: 38,
+                height: 38,
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
               }}
             >
-              {d.num}
-            </span>
+              <Ring pct={pct} highlight={selected || isToday} />
+              <span
+                style={{
+                  position: "relative",
+                  fontSize: 14,
+                  fontWeight: 800,
+                  color: selected || isToday ? ACCENT : "var(--text)",
+                }}
+              >
+                {dayOfMonth(iso)}
+              </span>
+            </div>
           </div>
-        </div>
-      ))}
+        );
+      })}
     </div>
   );
 }

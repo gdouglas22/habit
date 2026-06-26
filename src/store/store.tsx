@@ -9,49 +9,64 @@ import {
   HABITS,
   ACTIVITIES,
   FOODS,
+  ENTRIES,
   type Habit,
   type ActivityRow,
   type FoodRow,
+  type EntryLog,
 } from "../data";
+import { todayISO } from "../date";
+import { nextTapValue, valueOn } from "./selectors";
 import { loadState, saveState } from "./storage";
 
 export interface AppState {
   habits: Habit[];
   activities: ActivityRow[];
   foods: FoodRow[];
+  entries: EntryLog;
+  selectedDate: string; // ISO; the "current" calendar day in the UI
 }
 
 const initialState: AppState = {
   habits: HABITS,
   activities: ACTIVITIES,
   foods: FOODS,
+  entries: ENTRIES,
+  selectedDate: todayISO(),
 };
 
 export type Action =
-  | { type: "toggle_habit"; id: string }
+  | { type: "tap_habit"; id: string; date: string }
+  | { type: "set_habit_value"; id: string; date: string; value: number }
+  | { type: "select_date"; date: string }
   | { type: "add_habit"; habit: Habit }
   | { type: "update_habit"; habit: Habit }
   | { type: "delete_habit"; id: string }
   | { type: "delete_activity"; id: string }
   | { type: "delete_food"; id: string };
 
+function setEntry(entries: EntryLog, id: string, date: string, value: number): EntryLog {
+  const forHabit = { ...(entries[id] ?? {}) };
+  if (value <= 0) delete forHabit[date];
+  else forHabit[date] = value;
+  return { ...entries, [id]: forHabit };
+}
+
 function reducer(state: AppState, action: Action): AppState {
   switch (action.type) {
-    case "toggle_habit":
+    case "tap_habit": {
+      const h = state.habits.find((x) => x.id === action.id);
+      if (!h) return state;
+      const cur = valueOn(state.entries, h.id, action.date);
+      return { ...state, entries: setEntry(state.entries, h.id, action.date, nextTapValue(h, cur)) };
+    }
+    case "set_habit_value":
       return {
         ...state,
-        habits: state.habits.map((h) => {
-          if (h.id !== action.id) return h;
-          const done = !h.done;
-          return {
-            ...h,
-            done,
-            progress: done ? 1 : 0,
-            progressText: done ? "Выполнено" : "Сегодня",
-            streak: done ? h.streak + (h.streak === 0 ? 1 : 0) : h.streak,
-          };
-        }),
+        entries: setEntry(state.entries, action.id, action.date, Math.max(0, action.value)),
       };
+    case "select_date":
+      return { ...state, selectedDate: action.date };
     case "add_habit":
       return { ...state, habits: [...state.habits, action.habit] };
     case "update_habit":
@@ -59,8 +74,11 @@ function reducer(state: AppState, action: Action): AppState {
         ...state,
         habits: state.habits.map((h) => (h.id === action.habit.id ? action.habit : h)),
       };
-    case "delete_habit":
-      return { ...state, habits: state.habits.filter((h) => h.id !== action.id) };
+    case "delete_habit": {
+      const entries = { ...state.entries };
+      delete entries[action.id];
+      return { ...state, habits: state.habits.filter((h) => h.id !== action.id), entries };
+    }
     case "delete_activity":
       return { ...state, activities: state.activities.filter((a) => a.id !== action.id) };
     case "delete_food":
@@ -78,9 +96,10 @@ interface Store {
 const Ctx = createContext<Store | null>(null);
 
 export function StoreProvider({ children }: { children: ReactNode }) {
-  const [state, dispatch] = useReducer(reducer, initialState, (init) =>
-    loadState(init)
-  );
+  const [state, dispatch] = useReducer(reducer, initialState, (init) => ({
+    ...loadState(init),
+    selectedDate: todayISO(), // always open on the current day
+  }));
 
   useEffect(() => {
     saveState(state);

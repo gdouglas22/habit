@@ -2,26 +2,36 @@ import { ACCENT, ACCENT_GRADIENT, HABIT_COLORS } from "../theme";
 import { haptic, notifySuccess } from "../telegram";
 import { type Habit } from "../data";
 import { useStore } from "../store/store";
+import {
+  scheduledHabits,
+  isDoneOn,
+  progressOn,
+  progressTextOn,
+  streakOn,
+} from "../store/selectors";
+import { todayISO, formatWeekdayFull, formatDayMonth } from "../date";
 import { HABIT_ICONS } from "../habitMeta";
 import { Header } from "../components/Header";
 import { DaySelector } from "../components/DaySelector";
 import { Check, CheckSquare, Star, Flame, ChevronDown, Plus } from "../icons";
 
-function HabitCard({
-  h,
-  onToggle,
-  onOpen,
-}: {
+interface CardView {
   h: Habit;
-  onToggle: (id: string) => void;
+  done: boolean;
+  progress: number;
+  progressText: string;
+  streak: number;
+  onTap: (id: string) => void;
   onOpen: (id: string) => void;
-}) {
+}
+
+function HabitCard({ h, done, progress, progressText, streak, onTap, onOpen }: CardView) {
   const pal = HABIT_COLORS[h.color] ?? HABIT_COLORS.coral;
   const Icon = HABIT_ICONS[h.icon] ?? CheckSquare;
-  const pct = Math.round(h.progress * 100);
+  const pct = Math.round(progress * 100);
   return (
     <div
-      onClick={() => onToggle(h.id)}
+      onClick={() => onTap(h.id)}
       style={{
         position: "relative",
         overflow: "hidden",
@@ -82,7 +92,7 @@ function HabitCard({
             marginTop: 3,
           }}
         >
-          {h.progressText}
+          {progressText}
         </div>
       </div>
       <div
@@ -95,7 +105,7 @@ function HabitCard({
           flex: "none",
         }}
       >
-        {h.streak > 0 && (
+        {streak > 0 && (
           <div
             style={{
               display: "flex",
@@ -110,10 +120,10 @@ function HabitCard({
             }}
           >
             <Flame size={13} color="#F2994A" fill="#F2994A" stroke={1.5} />
-            {h.streak}
+            {streak}
           </div>
         )}
-        {h.done && (
+        {done && (
           <div
             style={{
               width: 27,
@@ -137,24 +147,26 @@ function HabitCard({
 
 export function Today({ onEdit }: { onEdit: (id: string | null) => void }) {
   const { state, dispatch } = useStore();
-  const habits = state.habits;
+  const date = state.selectedDate;
+  const isToday = date === todayISO();
+  const habits = scheduledHabits(state.habits, date);
 
-  const toggle = (id: string) => {
-    const wasDone = habits.find((h) => h.id === id)?.done;
+  const tap = (id: string) => {
+    const wasDone = isDoneOn(state.entries, state.habits.find((h) => h.id === id)!, date);
     if (wasDone) haptic("light");
     else notifySuccess();
-    dispatch({ type: "toggle_habit", id });
+    dispatch({ type: "tap_habit", id, date });
   };
 
-  const doneCount = habits.filter((h) => h.done).length;
+  const doneCount = habits.filter((h) => isDoneOn(state.entries, h, date)).length;
   const allDone = habits.length > 0 && doneCount === habits.length;
   const pct = habits.length ? Math.round((doneCount / habits.length) * 100) : 0;
 
   return (
     <div className="screen-pad">
       <Header
-        eyebrow="пятница, 26 июня"
-        title="Сегодня"
+        eyebrow={formatWeekdayFull(date) + ", " + formatDayMonth(date)}
+        title={isToday ? "Сегодня" : formatDayMonth(date)}
         right={
           <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
             <button
@@ -276,7 +288,16 @@ export function Today({ onEdit }: { onEdit: (id: string | null) => void }) {
 
       <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
         {habits.map((h) => (
-          <HabitCard key={h.id} h={h} onToggle={toggle} onOpen={onEdit} />
+          <HabitCard
+            key={h.id}
+            h={h}
+            done={isDoneOn(state.entries, h, date)}
+            progress={progressOn(state.entries, h, date)}
+            progressText={progressTextOn(state.entries, h, date)}
+            streak={streakOn(state.entries, h, date)}
+            onTap={tap}
+            onOpen={onEdit}
+          />
         ))}
       </div>
 
@@ -306,7 +327,7 @@ export function Today({ onEdit }: { onEdit: (id: string | null) => void }) {
             <CheckSquare size={34} />
           </div>
           <div style={{ fontSize: 19, fontWeight: 900, color: "var(--text)" }}>
-            Пока нет привычек
+            {state.habits.length === 0 ? "Пока нет привычек" : "На этот день привычек нет"}
           </div>
           <div
             style={{
@@ -318,28 +339,32 @@ export function Today({ onEdit }: { onEdit: (id: string | null) => void }) {
               lineHeight: 1.4,
             }}
           >
-            Добавьте первую привычку и начните свой стрик уже сегодня
+            {state.habits.length === 0
+              ? "Добавьте первую привычку и начните свой стрик уже сегодня"
+              : "Привычки запланированы на другие дни недели"}
           </div>
-          <button
-            onClick={() => {
-              haptic("light");
-              onEdit(null);
-            }}
-            style={{
-              marginTop: 22,
-              background: ACCENT,
-              color: "#fff",
-              border: "none",
-              borderRadius: 999,
-              padding: "14px 26px",
-              fontWeight: 900,
-              fontSize: 15,
-              cursor: "pointer",
-              boxShadow: "0 8px 20px -8px rgba(242,107,122,.7)",
-            }}
-          >
-            Добавить привычку
-          </button>
+          {state.habits.length === 0 && (
+            <button
+              onClick={() => {
+                haptic("light");
+                onEdit(null);
+              }}
+              style={{
+                marginTop: 22,
+                background: ACCENT,
+                color: "#fff",
+                border: "none",
+                borderRadius: 999,
+                padding: "14px 26px",
+                fontWeight: 900,
+                fontSize: 15,
+                cursor: "pointer",
+                boxShadow: "0 8px 20px -8px rgba(242,107,122,.7)",
+              }}
+            >
+              Добавить привычку
+            </button>
+          )}
         </div>
       )}
     </div>
