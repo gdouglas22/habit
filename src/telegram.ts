@@ -40,6 +40,8 @@ export interface TelegramWebApp {
   MainButton: TgMainButton;
   BackButton: TgBackButton;
   HapticFeedback: TgHaptic;
+  platform: string; // "unknown" when the SDK is loaded outside a Telegram client
+  initData: string;
   initDataUnsafe?: { user?: { first_name?: string } };
 }
 
@@ -50,7 +52,10 @@ declare global {
 }
 
 export const tg: TelegramWebApp | undefined = window.Telegram?.WebApp;
-export const hasTelegram = !!tg;
+// The SDK script defines window.Telegram.WebApp even in a normal browser, where
+// platform is "unknown" and MainButton/BackButton render nothing. Treat only a
+// real client session as "Telegram" so the in-page controls show otherwise.
+export const hasTelegram = !!tg && tg.platform !== "unknown";
 
 export function initTelegram(): void {
   if (!tg) return;
@@ -83,7 +88,7 @@ export function syncChrome(bg: string, header: string): void {
 let mainCb: (() => void) | null = null;
 
 export function showMainButton(text: string, cb: () => void): boolean {
-  if (!tg) return false;
+  if (!tg || !hasTelegram) return false;
   if (mainCb) tg.MainButton.offClick(mainCb);
   mainCb = cb;
   tg.MainButton.setText(text);

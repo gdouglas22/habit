@@ -1,7 +1,33 @@
 // Derived habit state. Nothing about completion is stored on the habit itself —
 // it all comes from the entries log keyed by date.
-import type { Habit, EntryLog } from "../data";
+import type { Habit, EntryLog, ActivityRow, FoodRow } from "../data";
+import { MACRO_GOALS } from "../data";
 import { addDays, weekdayMon0 } from "../date";
+
+export function activitiesOn(rows: ActivityRow[], date: string): ActivityRow[] {
+  return rows.filter((a) => a.date === date);
+}
+
+export function foodsOn(rows: FoodRow[], date: string): FoodRow[] {
+  return rows.filter((f) => f.date === date);
+}
+
+export function macroTotals(foods: FoodRow[]) {
+  const sum = foods.reduce(
+    (acc, f) => ({
+      protein: acc.protein + f.protein,
+      fat: acc.fat + f.fat,
+      carbs: acc.carbs + f.carbs,
+    }),
+    { protein: 0, fat: 0, carbs: 0 }
+  );
+  const pct = (g: number, goal: number) => `${Math.min(100, Math.round((g / goal) * 100))}%`;
+  return [
+    { label: "Б", grams: sum.protein, pct: pct(sum.protein, MACRO_GOALS.protein), color: "#58B978" },
+    { label: "Ж", grams: sum.fat, pct: pct(sum.fat, MACRO_GOALS.fat), color: "#F2994A" },
+    { label: "У", grams: sum.carbs, pct: pct(sum.carbs, MACRO_GOALS.carbs), color: "#4A90C2" },
+  ];
+}
 
 export function targetFor(h: Habit): number {
   if (h.type === "count" || h.type === "time") return Math.max(1, h.target ?? 1);

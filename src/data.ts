@@ -34,20 +34,29 @@ export type EntryLog = Record<string, Record<string, number>>;
 
 export interface ActivityRow {
   id: string;
+  date: string; // ISO day
   emoji: string;
   name: string;
   note?: string;
-  value: string;
+  value: number;
+  unit: string;
   kcal: number;
 }
 
 export interface FoodRow {
   id: string;
+  date: string; // ISO day
   emoji: string;
   name: string;
   note?: string;
   kcal: number;
+  protein: number; // grams
+  fat: number;
+  carbs: number;
 }
+
+// Daily macro goals (grams) — drive the БЖУ progress bars.
+export const MACRO_GOALS = { protein: 120, fat: 70, carbs: 250 };
 
 const ALL_DAYS = [0, 1, 2, 3, 4, 5, 6];
 
@@ -127,20 +136,16 @@ function seedEntries(): EntryLog {
 
 export const ENTRIES: EntryLog = seedEntries();
 
+const TODAY = todayISO();
+
 export const ACTIVITIES: ActivityRow[] = [
-  { id: "a1", emoji: "🏃", name: "Бег", note: "Утренняя пробежка", value: "5.2 км", kcal: 320 },
-  { id: "a2", emoji: "🚴", name: "Велосипед", value: "12 км", kcal: 280 },
-  { id: "a3", emoji: "🧘", name: "Йога", note: "Растяжка", value: "30 мин", kcal: 90 },
+  { id: "a1", date: TODAY, emoji: "🏃", name: "Бег", note: "Утренняя пробежка", value: 5.2, unit: "км", kcal: 320 },
+  { id: "a2", date: TODAY, emoji: "🚴", name: "Велосипед", value: 12, unit: "км", kcal: 280 },
+  { id: "a3", date: TODAY, emoji: "🧘", name: "Йога", note: "Растяжка", value: 30, unit: "мин", kcal: 90 },
 ];
 
 export const FOODS: FoodRow[] = [
-  { id: "f1", emoji: "🥗", name: "Салат с курицей", note: "Обед", kcal: 420 },
-  { id: "f2", emoji: "🍎", name: "Яблоко", kcal: 95 },
-  { id: "f3", emoji: "🍳", name: "Омлет", note: "Завтрак", kcal: 310 },
-];
-
-export const MACROS = [
-  { label: "Б", pct: "62%", color: "#58B978", value: "78 г" },
-  { label: "Ж", pct: "45%", color: "#F2994A", value: "41 г" },
-  { label: "У", pct: "70%", color: "#4A90C2", value: "180 г" },
+  { id: "f1", date: TODAY, emoji: "🥗", name: "Салат с курицей", note: "Обед", kcal: 420, protein: 35, fat: 18, carbs: 22 },
+  { id: "f2", date: TODAY, emoji: "🍎", name: "Яблоко", kcal: 95, protein: 0, fat: 0, carbs: 25 },
+  { id: "f3", date: TODAY, emoji: "🍳", name: "Омлет", note: "Завтрак", kcal: 310, protein: 20, fat: 24, carbs: 3 },
 ];

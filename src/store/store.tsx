@@ -42,7 +42,11 @@ export type Action =
   | { type: "add_habit"; habit: Habit }
   | { type: "update_habit"; habit: Habit }
   | { type: "delete_habit"; id: string }
+  | { type: "add_activity"; row: ActivityRow }
+  | { type: "update_activity"; row: ActivityRow }
   | { type: "delete_activity"; id: string }
+  | { type: "add_food"; row: FoodRow }
+  | { type: "update_food"; row: FoodRow }
   | { type: "delete_food"; id: string };
 
 function setEntry(entries: EntryLog, id: string, date: string, value: number): EntryLog {
@@ -79,8 +83,22 @@ function reducer(state: AppState, action: Action): AppState {
       delete entries[action.id];
       return { ...state, habits: state.habits.filter((h) => h.id !== action.id), entries };
     }
+    case "add_activity":
+      return { ...state, activities: [...state.activities, action.row] };
+    case "update_activity":
+      return {
+        ...state,
+        activities: state.activities.map((a) => (a.id === action.row.id ? action.row : a)),
+      };
     case "delete_activity":
       return { ...state, activities: state.activities.filter((a) => a.id !== action.id) };
+    case "add_food":
+      return { ...state, foods: [...state.foods, action.row] };
+    case "update_food":
+      return {
+        ...state,
+        foods: state.foods.map((f) => (f.id === action.row.id ? action.row : f)),
+      };
     case "delete_food":
       return { ...state, foods: state.foods.filter((f) => f.id !== action.id) };
     default:

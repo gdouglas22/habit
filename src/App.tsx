@@ -8,15 +8,21 @@ import { Food } from "./screens/Food";
 import { Calendar } from "./screens/Calendar";
 import { Settings } from "./screens/Settings";
 import { HabitEditor } from "./screens/HabitEditor";
+import { ActivityEditor } from "./screens/ActivityEditor";
+import { FoodEditor } from "./screens/FoodEditor";
 
 export type Screen = "today" | "activity" | "food" | "calendar" | "settings";
 
-// null habitId = creating a new habit
-type EditorRoute = { habitId: string | null } | null;
+// id === null means "create new"
+type Modal =
+  | { kind: "habit"; id: string | null }
+  | { kind: "activity"; id: string | null }
+  | { kind: "food"; id: string | null }
+  | null;
 
 export function App() {
   const [screen, setScreen] = useState<Screen>("today");
-  const [editor, setEditor] = useState<EditorRoute>(null);
+  const [modal, setModal] = useState<Modal>(null);
   const [theme, setTheme] = useState<ThemeName>(preferredTheme());
 
   // Apply CSS theme vars to the document root + sync Telegram chrome.
@@ -36,18 +42,21 @@ export function App() {
     return () => t.offEvent("themeChanged", onChange);
   }, []);
 
-  if (editor) {
-    return (
-      <HabitEditor habitId={editor.habitId} onClose={() => setEditor(null)} />
-    );
+  const close = () => setModal(null);
+  if (modal) {
+    if (modal.kind === "habit") return <HabitEditor habitId={modal.id} onClose={close} />;
+    if (modal.kind === "activity") return <ActivityEditor rowId={modal.id} onClose={close} />;
+    return <FoodEditor rowId={modal.id} onClose={close} />;
   }
 
   return (
     <div className="app">
       <div className="screen noscroll" key={screen}>
-        {screen === "today" && <Today onEdit={(id) => setEditor({ habitId: id })} />}
-        {screen === "activity" && <Activity />}
-        {screen === "food" && <Food />}
+        {screen === "today" && <Today onEdit={(id) => setModal({ kind: "habit", id })} />}
+        {screen === "activity" && (
+          <Activity onEdit={(id) => setModal({ kind: "activity", id })} />
+        )}
+        {screen === "food" && <Food onEdit={(id) => setModal({ kind: "food", id })} />}
         {screen === "calendar" && <Calendar onPick={() => setScreen("today")} />}
         {screen === "settings" && <Settings theme={theme} onTheme={setTheme} />}
       </div>
