@@ -8,11 +8,13 @@ import {
 import {
   HABITS,
   ACTIVITIES,
+  PRODUCTS,
   FOODS,
   ENTRIES,
   type Habit,
   type ActivityRow,
-  type FoodRow,
+  type Product,
+  type FoodEntry,
   type EntryLog,
 } from "../data";
 import { todayISO } from "../date";
@@ -22,14 +24,17 @@ import { loadState, saveState } from "./storage";
 export interface AppState {
   habits: Habit[];
   activities: ActivityRow[];
-  foods: FoodRow[];
+  products: Product[]; // product/dish database
+  foods: FoodEntry[]; // diary meals
   entries: EntryLog;
   selectedDate: string; // ISO; the "current" calendar day in the UI
+  apiKey?: string; // Anthropic key for AI nutrition lookup
 }
 
 const initialState: AppState = {
   habits: HABITS,
   activities: ACTIVITIES,
+  products: PRODUCTS,
   foods: FOODS,
   entries: ENTRIES,
   selectedDate: todayISO(),
@@ -45,9 +50,13 @@ export type Action =
   | { type: "add_activity"; row: ActivityRow }
   | { type: "update_activity"; row: ActivityRow }
   | { type: "delete_activity"; id: string }
-  | { type: "add_food"; row: FoodRow }
-  | { type: "update_food"; row: FoodRow }
-  | { type: "delete_food"; id: string };
+  | { type: "add_food"; row: FoodEntry }
+  | { type: "update_food"; row: FoodEntry }
+  | { type: "delete_food"; id: string }
+  | { type: "add_product"; product: Product }
+  | { type: "update_product"; product: Product }
+  | { type: "delete_product"; id: string }
+  | { type: "set_api_key"; apiKey: string };
 
 function setEntry(entries: EntryLog, id: string, date: string, value: number): EntryLog {
   const forHabit = { ...(entries[id] ?? {}) };
@@ -101,6 +110,17 @@ function reducer(state: AppState, action: Action): AppState {
       };
     case "delete_food":
       return { ...state, foods: state.foods.filter((f) => f.id !== action.id) };
+    case "add_product":
+      return { ...state, products: [...state.products, action.product] };
+    case "update_product":
+      return {
+        ...state,
+        products: state.products.map((p) => (p.id === action.product.id ? action.product : p)),
+      };
+    case "delete_product":
+      return { ...state, products: state.products.filter((p) => p.id !== action.id) };
+    case "set_api_key":
+      return { ...state, apiKey: action.apiKey };
     default:
       return state;
   }

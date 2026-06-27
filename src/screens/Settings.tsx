@@ -1,6 +1,7 @@
 import { ACCENT } from "../theme";
 import type { ThemeName } from "../theme";
 import { haptic } from "../telegram";
+import { useStore } from "../store/store";
 import { Sun, Moon, Bell, Sparkles } from "../icons";
 
 function Toggle({ on }: { on: boolean }) {
@@ -39,6 +40,8 @@ export function Settings({
   theme: ThemeName;
   onTheme: (t: ThemeName) => void;
 }) {
+  const { state, dispatch } = useStore();
+
   const seg = (active: boolean): React.CSSProperties => ({
     flex: 1,
     display: "flex",
@@ -110,6 +113,43 @@ export function Settings({
       >
         <Row icon={<Bell size={20} color="var(--hint)" />} title="Напоминания о привычках" border />
         <Row icon={<Sparkles size={20} color="var(--hint)" />} title="Тактильный отклик" />
+      </div>
+
+      <div style={label}>ИИ-ассистент (Anthropic)</div>
+      <div
+        style={{
+          background: "var(--card)",
+          borderRadius: 18,
+          padding: "14px 16px",
+          marginBottom: 10,
+          boxShadow: "0 1px 2px rgba(60,40,30,.05)",
+        }}
+      >
+        <input
+          type="password"
+          value={state.apiKey ?? ""}
+          onChange={(e) => dispatch({ type: "set_api_key", apiKey: e.target.value })}
+          placeholder="sk-ant-..."
+          autoComplete="off"
+          style={{
+            width: "100%",
+            border: "none",
+            background: "var(--card2)",
+            borderRadius: 12,
+            padding: "12px 14px",
+            fontWeight: 700,
+            fontSize: 14,
+            color: "var(--text)",
+            outline: "none",
+          }}
+        />
+        <div style={{ fontSize: 12, fontWeight: 700, color: "var(--hint)", marginTop: 8, lineHeight: 1.4 }}>
+          Ключ нужен, чтобы ИИ заполнял КБЖУ и витамины продуктов автоматически. Хранится только
+          на устройстве.
+        </div>
+      </div>
+      <div style={{ ...label, marginBottom: 24, fontWeight: 700, color: ACCENT }}>
+        {state.apiKey ? "Ключ сохранён" : "Без ключа доступен ручной ввод"}
       </div>
 
       <div style={{ background: "var(--card2)", borderRadius: 16, padding: "15px 16px" }}>

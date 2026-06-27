@@ -9,25 +9,31 @@ import { Calendar } from "./screens/Calendar";
 import { Settings } from "./screens/Settings";
 import { HabitEditor } from "./screens/HabitEditor";
 import { ActivityEditor } from "./screens/ActivityEditor";
-import { FoodEditor } from "./screens/FoodEditor";
+import { MealEditor } from "./screens/MealEditor";
+import { Products } from "./screens/Products";
+import { ProductEditor } from "./screens/ProductEditor";
 import { Timer } from "./screens/Timer";
 
 export type Screen = "today" | "activity" | "food" | "calendar" | "settings";
 
-// id === null means "create new"
-type Modal =
+// id === null means "create new". Modals are a stack so nested flows work
+// (meal → product picker → create product).
+export type Modal =
   | { kind: "habit"; id: string | null }
   | { kind: "activity"; id: string | null }
-  | { kind: "food"; id: string | null }
   | { kind: "timer"; id: string }
-  | null;
+  | { kind: "meal"; id: string | null }
+  | { kind: "products" }
+  | { kind: "product"; id: string | null };
 
 export function App() {
   const [screen, setScreen] = useState<Screen>("today");
-  const [modal, setModal] = useState<Modal>(null);
+  const [stack, setStack] = useState<Modal[]>([]);
   const [theme, setTheme] = useState<ThemeName>(preferredTheme());
 
-  // Apply CSS theme vars to the document root + sync Telegram chrome.
+  const push = (m: Modal) => setStack((s) => [...s, m]);
+  const pop = () => setStack((s) => s.slice(0, -1));
+
   useEffect(() => {
     const t = THEMES[theme];
     applyThemeVars(document.documentElement, t);
@@ -35,7 +41,6 @@ export function App() {
     syncChrome(t.bg, t.header);
   }, [theme]);
 
-  // Follow Telegram's own theme switches unless the user overrode it here.
   useEffect(() => {
     const t = tg;
     if (!t) return;
@@ -44,12 +49,33 @@ export function App() {
     return () => t.offEvent("themeChanged", onChange);
   }, []);
 
-  const close = () => setModal(null);
-  if (modal) {
-    if (modal.kind === "habit") return <HabitEditor habitId={modal.id} onClose={close} />;
-    if (modal.kind === "activity") return <ActivityEditor rowId={modal.id} onClose={close} />;
-    if (modal.kind === "timer") return <Timer habitId={modal.id} onClose={close} />;
-    return <FoodEditor rowId={modal.id} onClose={close} />;
+  const top = stack[stack.length - 1];
+  if (top) {
+    switch (top.kind) {
+      case "habit":
+        return <HabitEditor habitId={top.id} onClose={pop} />;
+      case "activity":
+        return <ActivityEditor rowId={top.id} onClose={pop} />;
+      case "timer":
+        return <Timer habitId={top.id} onClose={pop} />;
+      case "meal":
+        return (
+          <MealEditor
+            entryId={top.id}
+            onClose={pop}
+            onCreateProduct={() => push({ kind: "product", id: null })}
+          />
+        );
+      case "products":
+        return (
+          <Products
+            onClose={pop}
+            onEdit={(id) => push({ kind: "product", id })}
+          />
+        );
+      case "product":
+        return <ProductEditor productId={top.id} onClose={pop} />;
+    }
   }
 
   return (
@@ -57,14 +83,19 @@ export function App() {
       <div className="screen noscroll" key={screen}>
         {screen === "today" && (
           <Today
-            onEdit={(id) => setModal({ kind: "habit", id })}
-            onTimer={(id) => setModal({ kind: "timer", id })}
+            onEdit={(id) => push({ kind: "habit", id })}
+            onTimer={(id) => push({ kind: "timer", id })}
           />
         )}
         {screen === "activity" && (
-          <Activity onEdit={(id) => setModal({ kind: "activity", id })} />
+          <Activity onEdit={(id) => push({ kind: "activity", id })} />
         )}
-        {screen === "food" && <Food onEdit={(id) => setModal({ kind: "food", id })} />}
+        {screen === "food" && (
+          <Food
+            onEdit={(id) => push({ kind: "meal", id })}
+            onOpenBase={() => push({ kind: "products" })}
+          />
+        )}
         {screen === "calendar" && <Calendar onPick={() => setScreen("today")} />}
         {screen === "settings" && <Settings theme={theme} onTheme={setTheme} />}
       </div>

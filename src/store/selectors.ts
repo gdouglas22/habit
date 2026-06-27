@@ -1,32 +1,78 @@
 // Derived habit state. Nothing about completion is stored on the habit itself —
 // it all comes from the entries log keyed by date.
-import type { Habit, EntryLog, ActivityRow, FoodRow } from "../data";
-import { MACRO_GOALS } from "../data";
+import type {
+  Habit,
+  EntryLog,
+  ActivityRow,
+  FoodEntry,
+  Product,
+  Micros,
+} from "../data";
+import { MICRONUTRIENTS, emptyMicros } from "../data";
 import { addDays, weekdayMon0, formatMinutes } from "../date";
 
 export function activitiesOn(rows: ActivityRow[], date: string): ActivityRow[] {
   return rows.filter((a) => a.date === date);
 }
 
-export function foodsOn(rows: FoodRow[], date: string): FoodRow[] {
+export function foodsOn(rows: FoodEntry[], date: string): FoodEntry[] {
   return rows.filter((f) => f.date === date);
 }
 
-export function macroTotals(foods: FoodRow[]) {
-  const sum = foods.reduce(
-    (acc, f) => ({
-      protein: acc.protein + f.protein,
-      fat: acc.fat + f.fat,
-      carbs: acc.carbs + f.carbs,
-    }),
-    { protein: 0, fat: 0, carbs: 0 }
-  );
-  const pct = (g: number, goal: number) => `${Math.min(100, Math.round((g / goal) * 100))}%`;
-  return [
-    { label: "Б", grams: sum.protein, pct: pct(sum.protein, MACRO_GOALS.protein), color: "#58B978" },
-    { label: "Ж", grams: sum.fat, pct: pct(sum.fat, MACRO_GOALS.fat), color: "#F2994A" },
-    { label: "У", grams: sum.carbs, pct: pct(sum.carbs, MACRO_GOALS.carbs), color: "#4A90C2" },
-  ];
+export interface Nutrition {
+  kcal: number;
+  protein: number;
+  fat: number;
+  carbs: number;
+  fluid: number;
+  micros: Micros;
+}
+
+function zero(): Nutrition {
+  return { kcal: 0, protein: 0, fat: 0, carbs: 0, fluid: 0, micros: emptyMicros() };
+}
+
+function scale(p: Product, grams: number): Nutrition {
+  const k = grams / 100;
+  const micros: Micros = {};
+  for (const m of MICRONUTRIENTS) micros[m.key] = (p.micros[m.key] ?? 0) * k;
+  return {
+    kcal: p.kcal * k,
+    protein: p.protein * k,
+    fat: p.fat * k,
+    carbs: p.carbs * k,
+    fluid: p.fluid * k,
+    micros,
+  };
+}
+
+function add(a: Nutrition, b: Nutrition): Nutrition {
+  const micros: Micros = {};
+  for (const m of MICRONUTRIENTS) micros[m.key] = (a.micros[m.key] ?? 0) + (b.micros[m.key] ?? 0);
+  return {
+    kcal: a.kcal + b.kcal,
+    protein: a.protein + b.protein,
+    fat: a.fat + b.fat,
+    carbs: a.carbs + b.carbs,
+    fluid: a.fluid + b.fluid,
+    micros,
+  };
+}
+
+export function productById(products: Product[], id: string): Product | undefined {
+  return products.find((p) => p.id === id);
+}
+
+// Sum of an entry's items, resolved against the product database.
+export function entryNutrition(entry: FoodEntry, products: Product[]): Nutrition {
+  return entry.items.reduce((acc, item) => {
+    const p = productById(products, item.productId);
+    return p ? add(acc, scale(p, item.grams)) : acc;
+  }, zero());
+}
+
+export function dayNutrition(foods: FoodEntry[], products: Product[]): Nutrition {
+  return foods.reduce((acc, e) => add(acc, entryNutrition(e, products)), zero());
 }
 
 export function targetFor(h: Habit): number {

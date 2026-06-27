@@ -1,8 +1,9 @@
 // Persistence abstraction. Today it's synchronous localStorage; later this can
 // gain a Telegram CloudStorage / backend tier without touching the store.
 
-// Bump the version to invalidate older persisted state (e.g. demo seed data).
-const KEY = "habit-tracker-state-v2";
+// Bump the version to invalidate older persisted state (e.g. demo seed data,
+// or the old flat food-row shape replaced by products + meal entries).
+const KEY = "habit-tracker-state-v3";
 
 export function loadState<T>(fallback: T): T {
   try {
