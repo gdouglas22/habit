@@ -145,14 +145,27 @@ function HabitCard({ h, done, progress, progressText, streak, onTap, onOpen }: C
   );
 }
 
-export function Today({ onEdit }: { onEdit: (id: string | null) => void }) {
+export function Today({
+  onEdit,
+  onTimer,
+}: {
+  onEdit: (id: string | null) => void;
+  onTimer: (id: string) => void;
+}) {
   const { state, dispatch } = useStore();
   const date = state.selectedDate;
   const isToday = date === todayISO();
   const habits = scheduledHabits(state.habits, date);
 
   const tap = (id: string) => {
-    const wasDone = isDoneOn(state.entries, state.habits.find((h) => h.id === id)!, date);
+    const habit = state.habits.find((h) => h.id === id)!;
+    // Time habits open the concentration timer instead of toggling.
+    if (habit.type === "time") {
+      haptic("light");
+      onTimer(id);
+      return;
+    }
+    const wasDone = isDoneOn(state.entries, habit, date);
     if (wasDone) haptic("light");
     else notifySuccess();
     dispatch({ type: "tap_habit", id, date });

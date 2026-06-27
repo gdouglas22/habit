@@ -7,7 +7,8 @@ import {
   ICON_KEYS,
   COLOR_KEYS,
   TYPE_OPTIONS,
-  UNIT_OPTIONS,
+  COUNT_UNITS,
+  TIME_UNIT,
   DAY_LABELS,
   draftHabit,
 } from "../habitMeta";
@@ -229,7 +230,13 @@ export function HabitEditor({
                   key={o.key}
                   onClick={() => {
                     haptic("light");
-                    set({ type: o.key });
+                    if (o.key === "time") {
+                      set({ type: "time", unit: TIME_UNIT, target: (draft.target ?? 0) >= 5 ? draft.target : 25 });
+                    } else if (o.key === "count") {
+                      set({ type: "count", unit: draft.unit === TIME_UNIT ? COUNT_UNITS[0] : draft.unit });
+                    } else {
+                      set({ type: "check" });
+                    }
                   }}
                   style={{
                     flex: 1,
@@ -253,10 +260,10 @@ export function HabitEditor({
           {/* target */}
           {showTarget && (
             <>
-              <div style={label}>Цель</div>
-              <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 14 }}>
+              <div style={label}>{draft.type === "time" ? "Цель, минут" : "Цель"}</div>
+              <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: draft.type === "time" ? 22 : 14 }}>
                 <button
-                  onClick={() => set({ target: Math.max(1, (draft.target ?? 1) - 1) })}
+                  onClick={() => set({ target: Math.max(1, (draft.target ?? 1) - (draft.type === "time" ? 5 : 1)) })}
                   style={stepBtn}
                 >
                   −
@@ -266,34 +273,43 @@ export function HabitEditor({
                   style={{ flex: 1, textAlign: "center", fontSize: 26, fontWeight: 900, color: "var(--text)" }}
                 >
                   {draft.target ?? 1}
+                  {draft.type === "time" && (
+                    <span style={{ fontSize: 15, fontWeight: 800, color: "var(--hint)" }}> мин</span>
+                  )}
                 </div>
-                <button onClick={() => set({ target: (draft.target ?? 1) + 1 })} style={stepBtn}>
+                <button
+                  onClick={() => set({ target: (draft.target ?? 1) + (draft.type === "time" ? 5 : 1) })}
+                  style={stepBtn}
+                >
                   +
                 </button>
               </div>
-              <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 22 }}>
-                {UNIT_OPTIONS.map((u) => {
-                  const active = draft.unit === u;
-                  return (
-                    <button
-                      key={u}
-                      onClick={() => set({ unit: u })}
-                      style={{
-                        border: `1px solid ${active ? ACCENT : "var(--line)"}`,
-                        borderRadius: 999,
-                        padding: "7px 14px",
-                        fontWeight: 800,
-                        fontSize: 13,
-                        cursor: "pointer",
-                        background: active ? "rgba(242,107,122,.12)" : "transparent",
-                        color: active ? ACCENT : "var(--text)",
-                      }}
-                    >
-                      {u}
-                    </button>
-                  );
-                })}
-              </div>
+              {/* count units (time is always minutes, no chips) */}
+              {draft.type === "count" && (
+                <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 22 }}>
+                  {COUNT_UNITS.map((u) => {
+                    const active = draft.unit === u;
+                    return (
+                      <button
+                        key={u}
+                        onClick={() => set({ unit: u })}
+                        style={{
+                          border: `1px solid ${active ? ACCENT : "var(--line)"}`,
+                          borderRadius: 999,
+                          padding: "7px 14px",
+                          fontWeight: 800,
+                          fontSize: 13,
+                          cursor: "pointer",
+                          background: active ? "rgba(242,107,122,.12)" : "transparent",
+                          color: active ? ACCENT : "var(--text)",
+                        }}
+                      >
+                        {u}
+                      </button>
+                    );
+                  })}
+                </div>
+              )}
             </>
           )}
 

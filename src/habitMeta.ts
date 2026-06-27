@@ -34,7 +34,9 @@ export const TYPE_OPTIONS: { key: HabitType; label: string }[] = [
   { key: "time", label: "Время" },
 ];
 
-export const UNIT_OPTIONS = ["раз", "стаканов", "страниц", "минут", "км", "шагов"];
+// Countable units for type "count". Type "time" always uses minutes.
+export const COUNT_UNITS = ["раз", "стаканов", "страниц", "км", "шагов", "подходов"];
+export const TIME_UNIT = "мин";
 export const DAY_LABELS = ["пн", "вт", "ср", "чт", "пт", "сб", "вс"];
 
 export function draftHabit(id: string): Habit {
