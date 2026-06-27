@@ -3,7 +3,7 @@
 
 // Bump the version to invalidate older persisted state (e.g. demo seed data,
 // or the old flat food-row shape replaced by products + meal entries).
-const KEY = "habit-tracker-state-v3";
+const KEY = "habit-tracker-state-v4";
 
 export function loadState<T>(fallback: T): T {
   try {

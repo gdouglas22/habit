@@ -31,16 +31,27 @@ export interface Habit {
 // habitId -> ISO date -> value (check: 0/1, count/time: amount done that day)
 export type EntryLog = Record<string, Record<string, number>>;
 
+// An activity in the user's library: how many kcal it burns per 1 unit
+// (e.g. per minute / per km) for an average adult.
+export interface ActivityType {
+  id: string;
+  name: string;
+  emoji: string;
+  unit: string; // "мин" | "км" | "повтор" | ...
+  kcalPerUnit: number;
+}
+
+// A diary entry references a library activity + an amount in its unit.
 export interface ActivityRow {
   id: string;
   date: string; // ISO day
-  emoji: string;
-  name: string;
+  activityId: string;
+  value: number; // amount in the activity's unit
   note?: string;
-  value: number;
-  unit: string;
-  kcal: number;
 }
+
+export const ACTIVITY_UNITS = ["мин", "км", "повтор", "подход", "шаг"];
+export const ACTIVITY_EMOJIS = ["🏃", "🚴", "🧘", "🏊", "🚶", "💪", "⚽", "🏋️", "🤸", "⛹️", "🥊", "🧗"];
 
 // Micronutrient catalog — the fixed set every product carries. Values are
 // stored per 100 g; the app sums them up by grams eaten. Set chosen here.
@@ -107,6 +118,7 @@ export const FOOD_EMOJIS = ["🍽️", "🍎", "🥛", "🥐", "🥗", "🍲"];
 // up their own habits and diary entries from scratch.
 export const HABITS: Habit[] = [];
 export const ENTRIES: EntryLog = {};
+export const ACTIVITY_TYPES: ActivityType[] = [];
 export const ACTIVITIES: ActivityRow[] = [];
 export const PRODUCTS: Product[] = [];
 export const FOODS: FoodEntry[] = [];

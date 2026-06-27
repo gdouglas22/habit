@@ -7,11 +7,13 @@ import {
 } from "react";
 import {
   HABITS,
+  ACTIVITY_TYPES,
   ACTIVITIES,
   PRODUCTS,
   FOODS,
   ENTRIES,
   type Habit,
+  type ActivityType,
   type ActivityRow,
   type Product,
   type FoodEntry,
@@ -23,16 +25,18 @@ import { loadState, saveState } from "./storage";
 
 export interface AppState {
   habits: Habit[];
-  activities: ActivityRow[];
+  activityTypes: ActivityType[]; // activity library
+  activities: ActivityRow[]; // diary entries
   products: Product[]; // product/dish database
   foods: FoodEntry[]; // diary meals
   entries: EntryLog;
   selectedDate: string; // ISO; the "current" calendar day in the UI
-  apiKey?: string; // Anthropic key for AI nutrition lookup
+  apiKey?: string; // Anthropic key for AI lookup
 }
 
 const initialState: AppState = {
   habits: HABITS,
+  activityTypes: ACTIVITY_TYPES,
   activities: ACTIVITIES,
   products: PRODUCTS,
   foods: FOODS,
@@ -50,6 +54,9 @@ export type Action =
   | { type: "add_activity"; row: ActivityRow }
   | { type: "update_activity"; row: ActivityRow }
   | { type: "delete_activity"; id: string }
+  | { type: "add_activity_type"; activityType: ActivityType }
+  | { type: "update_activity_type"; activityType: ActivityType }
+  | { type: "delete_activity_type"; id: string }
   | { type: "add_food"; row: FoodEntry }
   | { type: "update_food"; row: FoodEntry }
   | { type: "delete_food"; id: string }
@@ -101,6 +108,20 @@ function reducer(state: AppState, action: Action): AppState {
       };
     case "delete_activity":
       return { ...state, activities: state.activities.filter((a) => a.id !== action.id) };
+    case "add_activity_type":
+      return { ...state, activityTypes: [...state.activityTypes, action.activityType] };
+    case "update_activity_type":
+      return {
+        ...state,
+        activityTypes: state.activityTypes.map((a) =>
+          a.id === action.activityType.id ? action.activityType : a
+        ),
+      };
+    case "delete_activity_type":
+      return {
+        ...state,
+        activityTypes: state.activityTypes.filter((a) => a.id !== action.id),
+      };
     case "add_food":
       return { ...state, foods: [...state.foods, action.row] };
     case "update_food":

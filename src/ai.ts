@@ -115,3 +115,74 @@ export async function lookupNutrition(apiKey: string, name: string): Promise<Nut
   if (!block?.input) throw new Error("ИИ не вернул данные");
   return block.input as NutritionResult;
 }
+
+// --- Activity calorie-burn lookup ---------------------------------------
+export interface ActivityInfo {
+  unit: string; // "мин" | "км" | "повтор" | "подход" | "шаг"
+  kcalPerUnit: number; // kcal burned per 1 unit, average adult ~70 kg
+}
+
+export function isPlausibleActivity(a: ActivityInfo): boolean {
+  return Number.isFinite(a.kcalPerUnit) && a.kcalPerUnit > 0 && a.kcalPerUnit < 1000;
+}
+
+export async function lookupActivity(apiKey: string, name: string): Promise<ActivityInfo> {
+  const schema = {
+    type: "object",
+    additionalProperties: false,
+    properties: {
+      unit: {
+        type: "string",
+        enum: ["мин", "км", "повтор", "подход", "шаг"],
+        description: "Наиболее естественная единица измерения для этой активности",
+      },
+      kcalPerUnit: {
+        type: "number",
+        description: "Сколько ккал сжигается за 1 единицу у взрослого ~70 кг",
+      },
+    },
+    required: ["unit", "kcalPerUnit"],
+  };
+
+  const res = await fetch("https://api.anthropic.com/v1/messages", {
+    method: "POST",
+    headers: {
+      "content-type": "application/json",
+      "x-api-key": apiKey,
+      "anthropic-version": "2023-06-01",
+      "anthropic-dangerous-direct-browser-access": "true",
+    },
+    body: JSON.stringify({
+      model: MODEL,
+      max_tokens: 512,
+      tools: [
+        {
+          name: "save_activity",
+          description: "Сохранить расход калорий для физической активности.",
+          strict: true,
+          input_schema: schema,
+        },
+      ],
+      tool_choice: { type: "tool", name: "save_activity" },
+      messages: [
+        {
+          role: "user",
+          content:
+            `Оцени расход калорий для активности: "${name}". ` +
+            "Выбери естественную единицу (минуты — для большинства, км — для бега/велосипеда/ходьбы, " +
+            "повтор/подход — для силовых) и укажи, сколько ккал сжигается за 1 такую единицу " +
+            "у взрослого человека ~70 кг. Только число, без диапазонов.",
+        },
+      ],
+    }),
+  });
+
+  if (!res.ok) {
+    const text = await res.text().catch(() => "");
+    throw new Error(`Ошибка ИИ (${res.status}). ${text.slice(0, 160)}`);
+  }
+  const data = await res.json();
+  const block = (data.content ?? []).find((b: { type: string }) => b.type === "tool_use");
+  if (!block?.input) throw new Error("ИИ не вернул данные");
+  return block.input as ActivityInfo;
+}

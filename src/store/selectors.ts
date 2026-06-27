@@ -4,6 +4,7 @@ import type {
   Habit,
   EntryLog,
   ActivityRow,
+  ActivityType,
   FoodEntry,
   Product,
   Micros,
@@ -13,6 +14,15 @@ import { addDays, weekdayMon0, formatMinutes } from "../date";
 
 export function activitiesOn(rows: ActivityRow[], date: string): ActivityRow[] {
   return rows.filter((a) => a.date === date);
+}
+
+export function activityTypeById(types: ActivityType[], id: string): ActivityType | undefined {
+  return types.find((t) => t.id === id);
+}
+
+export function activityKcal(row: ActivityRow, types: ActivityType[]): number {
+  const t = activityTypeById(types, row.activityId);
+  return t ? Math.round(t.kcalPerUnit * row.value) : 0;
 }
 
 export function foodsOn(rows: FoodEntry[], date: string): FoodEntry[] {

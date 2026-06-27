@@ -1,35 +1,37 @@
 import { useState } from "react";
 import { useStore, newId } from "../store/store";
 import type { ActivityRow } from "../data";
+import { activityTypeById } from "../store/selectors";
 import { haptic, notifySuccess } from "../telegram";
 import { EditorShell, fieldLabel, stepBtn } from "../components/EditorShell";
-
-const EMOJIS = ["🏃", "🚴", "🧘", "🏊", "🚶", "💪", "⚽", "🏋️"];
-const UNITS = ["км", "мин", "шаг", "повт", "подх"];
-
-function draft(date: string): ActivityRow {
-  return { id: newId(), date, emoji: "🏃", name: "", value: 1, unit: "км", kcal: 100 };
-}
+import { Plus } from "../icons";
 
 export function ActivityEditor({
   rowId,
   onClose,
+  onCreateType,
 }: {
   rowId: string | null;
   onClose: () => void;
+  onCreateType: () => void;
 }) {
   const { state, dispatch } = useStore();
   const existing = rowId ? state.activities.find((a) => a.id === rowId) : undefined;
-  const [row, setRow] = useState<ActivityRow>(existing ?? draft(state.selectedDate));
-  const set = (p: Partial<ActivityRow>) => setRow((r) => ({ ...r, ...p }));
+  const [row, setRow] = useState<ActivityRow>(
+    existing ?? { id: newId(), date: state.selectedDate, activityId: "", value: 30 }
+  );
+  const [q, setQ] = useState("");
+  const set = (patch: Partial<ActivityRow>) => setRow((r) => ({ ...r, ...patch }));
+
+  const type = activityTypeById(state.activityTypes, row.activityId);
+  const kcal = type ? Math.round(type.kcalPerUnit * row.value) : 0;
 
   const save = () => {
-    const name = row.name.trim();
-    if (!name) {
+    if (!row.activityId) {
       haptic("medium");
       return;
     }
-    dispatch(existing ? { type: "update_activity", row: { ...row, name } } : { type: "add_activity", row: { ...row, name } });
+    dispatch(existing ? { type: "update_activity", row } : { type: "add_activity", row });
     notifySuccess();
     onClose();
   };
@@ -42,166 +44,216 @@ export function ActivityEditor({
       }
     : undefined;
 
+  const filtered = state.activityTypes.filter((t) =>
+    t.name.toLowerCase().includes(q.trim().toLowerCase())
+  );
+
   return (
     <EditorShell
       title={existing ? "Активность" : "Новая активность"}
-      canSave={row.name.trim().length > 0}
+      canSave={!!row.activityId}
       onSave={save}
       onClose={onClose}
       onDelete={remove}
       deleteLabel="Удалить запись"
     >
-      {/* emoji + name */}
-      <div style={{ display: "flex", alignItems: "center", gap: 13, marginBottom: 20 }}>
-        <div
-          style={{
-            width: 56,
-            height: 56,
-            borderRadius: 16,
-            background: "var(--card2)",
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            fontSize: 30,
-            flex: "none",
-          }}
-        >
-          {row.emoji}
-        </div>
-        <input
-          value={row.name}
-          onChange={(e) => set({ name: e.target.value })}
-          placeholder="Название активности"
-          style={inputUnderline}
-        />
-      </div>
-
-      {/* emoji picker */}
-      <div style={fieldLabel}>Иконка</div>
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(8,1fr)", gap: 8, marginBottom: 22 }}>
-        {EMOJIS.map((e) => (
-          <div
-            key={e}
+      {!type ? (
+        // --- pick an activity from the library ---
+        <>
+          <div style={fieldLabel}>Выбери активность из базы</div>
+          <input
+            value={q}
+            onChange={(e) => setQ(e.target.value)}
+            placeholder="Поиск активности"
+            style={{
+              width: "100%",
+              border: "none",
+              background: "var(--card2)",
+              borderRadius: 13,
+              padding: "12px 14px",
+              fontWeight: 700,
+              fontSize: 15,
+              color: "var(--text)",
+              outline: "none",
+              marginBottom: 10,
+            }}
+          />
+          <div style={{ display: "flex", flexDirection: "column", gap: 6, marginBottom: 12 }}>
+            {filtered.map((t) => (
+              <div
+                key={t.id}
+                onClick={() => {
+                  haptic("light");
+                  set({ activityId: t.id });
+                }}
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  gap: 10,
+                  background: "var(--card)",
+                  borderRadius: 12,
+                  padding: "10px 12px",
+                  cursor: "pointer",
+                  boxShadow: "0 1px 2px rgba(60,40,30,.05)",
+                }}
+              >
+                <div style={{ fontSize: 20 }}>{t.emoji}</div>
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{ fontWeight: 800, fontSize: 15, color: "var(--text)" }}>{t.name}</div>
+                  <div style={{ fontSize: 11, fontWeight: 700, color: "var(--hint)" }}>
+                    {t.kcalPerUnit} ккал / {t.unit}
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+          <button
             onClick={() => {
               haptic("light");
-              set({ emoji: e });
+              onCreateType();
             }}
             style={{
-              aspectRatio: "1",
-              borderRadius: 13,
               display: "flex",
               alignItems: "center",
               justifyContent: "center",
-              fontSize: 22,
-              cursor: "pointer",
+              gap: 7,
+              width: "100%",
+              border: "none",
+              borderRadius: 12,
               background: "var(--card2)",
-              border: `2px solid ${row.emoji === e ? "var(--accent)" : "transparent"}`,
+              color: "var(--text)",
+              fontWeight: 800,
+              fontSize: 14,
+              padding: 12,
+              cursor: "pointer",
             }}
           >
-            {e}
-          </div>
-        ))}
-      </div>
-
-      {/* value + unit */}
-      <div style={fieldLabel}>Значение</div>
-      <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 14 }}>
-        <button onClick={() => set({ value: Math.max(0, +(row.value - 1).toFixed(1)) })} style={stepBtn}>
-          −
-        </button>
-        <input
-          value={row.value}
-          onChange={(e) => set({ value: Math.max(0, Number(e.target.value) || 0) })}
-          inputMode="decimal"
-          style={numberInput}
-        />
-        <button onClick={() => set({ value: +(row.value + 1).toFixed(1) })} style={stepBtn}>
-          +
-        </button>
-      </div>
-      <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 22 }}>
-        {UNITS.map((u) => (
-          <button key={u} onClick={() => set({ unit: u })} style={chip(row.unit === u)}>
-            {u}
+            <Plus size={16} />
+            Создать новую активность
           </button>
-        ))}
-      </div>
+        </>
+      ) : (
+        // --- selected activity + amount ---
+        <>
+          <div style={{ display: "flex", alignItems: "center", gap: 13, marginBottom: 20 }}>
+            <div
+              style={{
+                width: 56,
+                height: 56,
+                borderRadius: 16,
+                background: "var(--card2)",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                fontSize: 30,
+                flex: "none",
+              }}
+            >
+              {type.emoji}
+            </div>
+            <div style={{ flex: 1, minWidth: 0 }}>
+              <div style={{ fontSize: 19, fontWeight: 900, color: "var(--text)" }}>{type.name}</div>
+              <button
+                onClick={() => {
+                  haptic("light");
+                  set({ activityId: "" });
+                }}
+                style={{
+                  border: "none",
+                  background: "transparent",
+                  color: "var(--accent)",
+                  fontWeight: 800,
+                  fontSize: 13,
+                  padding: 0,
+                  cursor: "pointer",
+                }}
+              >
+                Сменить активность
+              </button>
+            </div>
+          </div>
 
-      {/* kcal */}
-      <div style={fieldLabel}>Расход калорий</div>
-      <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 22 }}>
-        <button onClick={() => set({ kcal: Math.max(0, row.kcal - 10) })} style={stepBtn}>
-          −
-        </button>
-        <div
-          className="bignum"
-          style={{ flex: 1, textAlign: "center", fontSize: 24, fontWeight: 900, color: "var(--text)" }}
-        >
-          {row.kcal}
-          <span style={{ fontSize: 14, fontWeight: 800, color: "var(--hint)" }}> ккал</span>
-        </div>
-        <button onClick={() => set({ kcal: row.kcal + 10 })} style={stepBtn}>
-          +
-        </button>
-      </div>
+          <div style={fieldLabel}>Количество ({type.unit})</div>
+          <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 18 }}>
+            <button onClick={() => set({ value: Math.max(0, +(row.value - 1).toFixed(1)) })} style={stepBtn}>
+              −
+            </button>
+            <input
+              value={row.value}
+              onChange={(e) => set({ value: Math.max(0, Number(e.target.value) || 0) })}
+              inputMode="decimal"
+              style={{
+                flex: 1,
+                textAlign: "center",
+                border: "none",
+                background: "var(--card2)",
+                borderRadius: 13,
+                padding: 11,
+                fontSize: 24,
+                fontWeight: 900,
+                color: "var(--text)",
+                outline: "none",
+                minWidth: 0,
+              }}
+            />
+            <button onClick={() => set({ value: +(row.value + 1).toFixed(1) })} style={stepBtn}>
+              +
+            </button>
+          </div>
 
-      {/* note */}
-      <div style={fieldLabel}>Заметка</div>
-      <input
-        value={row.note ?? ""}
-        onChange={(e) => set({ note: e.target.value })}
-        placeholder="Необязательно"
-        style={{ ...inputFilled, marginBottom: 18 }}
-      />
+          {/* computed kcal */}
+          <div
+            style={{
+              display: "flex",
+              alignItems: "center",
+              gap: 13,
+              background: "var(--card2)",
+              borderRadius: 16,
+              padding: "14px 16px",
+              marginBottom: 18,
+            }}
+          >
+            <div
+              style={{
+                width: 44,
+                height: 44,
+                borderRadius: 13,
+                background: "linear-gradient(135deg,#F2994A,#F26B7A)",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                fontSize: 20,
+                flex: "none",
+              }}
+            >
+              🔥
+            </div>
+            <div className="bignum" style={{ fontSize: 26, fontWeight: 900, color: "var(--text)" }}>
+              {kcal}
+              <span style={{ fontSize: 14, fontWeight: 800, color: "var(--hint)" }}> ккал</span>
+            </div>
+          </div>
+
+          <div style={fieldLabel}>Заметка</div>
+          <input
+            value={row.note ?? ""}
+            onChange={(e) => set({ note: e.target.value })}
+            placeholder="Необязательно"
+            style={{
+              width: "100%",
+              border: "none",
+              background: "var(--card2)",
+              borderRadius: 13,
+              fontWeight: 700,
+              fontSize: 15,
+              color: "var(--text)",
+              padding: "13px 14px",
+              outline: "none",
+              marginBottom: 18,
+            }}
+          />
+        </>
+      )}
     </EditorShell>
   );
 }
-
-const inputUnderline: React.CSSProperties = {
-  flex: 1,
-  minWidth: 0,
-  border: "none",
-  borderBottom: "2px solid var(--line)",
-  background: "transparent",
-  fontWeight: 800,
-  fontSize: 19,
-  color: "var(--text)",
-  padding: "8px 2px",
-  outline: "none",
-};
-
-const inputFilled: React.CSSProperties = {
-  border: "none",
-  background: "var(--card2)",
-  borderRadius: 13,
-  fontWeight: 700,
-  fontSize: 15,
-  color: "var(--text)",
-  padding: "13px 14px",
-  outline: "none",
-};
-
-const numberInput: React.CSSProperties = {
-  flex: 1,
-  textAlign: "center",
-  border: "none",
-  background: "var(--card2)",
-  borderRadius: 13,
-  padding: 11,
-  fontSize: 24,
-  fontWeight: 900,
-  color: "var(--text)",
-  outline: "none",
-  minWidth: 0,
-};
-
-const chip = (active: boolean): React.CSSProperties => ({
-  border: `1px solid ${active ? "var(--accent)" : "var(--line)"}`,
-  borderRadius: 999,
-  padding: "8px 15px",
-  background: active ? "rgba(242,107,122,.12)" : "transparent",
-  color: active ? "var(--accent)" : "var(--text)",
-  fontWeight: 800,
-  fontSize: 13,
-  cursor: "pointer",
-});

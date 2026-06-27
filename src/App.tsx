@@ -9,6 +9,8 @@ import { Calendar } from "./screens/Calendar";
 import { Settings } from "./screens/Settings";
 import { HabitEditor } from "./screens/HabitEditor";
 import { ActivityEditor } from "./screens/ActivityEditor";
+import { ActivityTypes } from "./screens/ActivityTypes";
+import { ActivityTypeEditor } from "./screens/ActivityTypeEditor";
 import { MealEditor } from "./screens/MealEditor";
 import { Products } from "./screens/Products";
 import { ProductEditor } from "./screens/ProductEditor";
@@ -21,6 +23,8 @@ export type Screen = "today" | "activity" | "food" | "calendar" | "settings";
 export type Modal =
   | { kind: "habit"; id: string | null }
   | { kind: "activity"; id: string | null }
+  | { kind: "activityTypes" }
+  | { kind: "activityType"; id: string | null }
   | { kind: "timer"; id: string }
   | { kind: "meal"; id: string | null }
   | { kind: "products" }
@@ -55,7 +59,17 @@ export function App() {
       case "habit":
         return <HabitEditor habitId={top.id} onClose={pop} />;
       case "activity":
-        return <ActivityEditor rowId={top.id} onClose={pop} />;
+        return (
+          <ActivityEditor
+            rowId={top.id}
+            onClose={pop}
+            onCreateType={() => push({ kind: "activityType", id: null })}
+          />
+        );
+      case "activityTypes":
+        return <ActivityTypes onClose={pop} onEdit={(id) => push({ kind: "activityType", id })} />;
+      case "activityType":
+        return <ActivityTypeEditor typeId={top.id} onClose={pop} />;
       case "timer":
         return <Timer habitId={top.id} onClose={pop} />;
       case "meal":
@@ -88,7 +102,10 @@ export function App() {
           />
         )}
         {screen === "activity" && (
-          <Activity onEdit={(id) => push({ kind: "activity", id })} />
+          <Activity
+            onEdit={(id) => push({ kind: "activity", id })}
+            onOpenBase={() => push({ kind: "activityTypes" })}
+          />
         )}
         {screen === "food" && (
           <Food
