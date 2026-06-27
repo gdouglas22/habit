@@ -8,6 +8,9 @@ import {
   progressOn,
   progressTextOn,
   streakOn,
+  valueOn,
+  targetFor,
+  nextTapValue,
 } from "../store/selectors";
 import { todayISO, formatWeekdayFull, formatDayMonth } from "../date";
 import { HABIT_ICONS } from "../habitMeta";
@@ -21,14 +24,18 @@ interface CardView {
   progress: number;
   progressText: string;
   streak: number;
+  value: number;
   onTap: (id: string) => void;
+  onDec: (id: string) => void;
   onOpen: (id: string) => void;
 }
 
-function HabitCard({ h, done, progress, progressText, streak, onTap, onOpen }: CardView) {
+function HabitCard({ h, done, progress, progressText, streak, value, onTap, onDec, onOpen }: CardView) {
   const pal = HABIT_COLORS[h.color] ?? HABIT_COLORS.coral;
   const Icon = HABIT_ICONS[h.icon] ?? CheckSquare;
   const pct = Math.round(progress * 100);
+  const canDec = h.type === "count" && value > 0;
+  const overachieved = h.type === "count" && h.target !== undefined && value > h.target;
   return (
     <div
       onClick={() => onTap(h.id)}
@@ -87,12 +94,13 @@ function HabitCard({ h, done, progress, progressText, streak, onTap, onOpen }: C
           style={{
             fontWeight: 800,
             fontSize: 13,
-            color: "var(--text)",
-            opacity: 0.6,
+            color: overachieved ? ACCENT : "var(--text)",
+            opacity: overachieved ? 1 : 0.6,
             marginTop: 3,
           }}
         >
           {progressText}
+          {overachieved && ` · +${value - (h.target ?? 0)}`}
         </div>
       </div>
       <div
@@ -123,21 +131,51 @@ function HabitCard({ h, done, progress, progressText, streak, onTap, onOpen }: C
             {streak}
           </div>
         )}
-        {done && (
-          <div
-            style={{
-              width: 27,
-              height: 27,
-              borderRadius: 999,
-              background: "var(--text)",
-              color: "var(--bg)",
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
-              animation: "pop .35s ease",
-            }}
-          >
-            <Check size={15} color="var(--bg)" stroke={3} />
+        {(canDec || done) && (
+          <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+            {canDec && (
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onDec(h.id);
+                }}
+                aria-label="Убавить"
+                style={{
+                  width: 27,
+                  height: 27,
+                  borderRadius: 999,
+                  border: "none",
+                  background: "rgba(255,255,255,.7)",
+                  color: "var(--text)",
+                  fontSize: 20,
+                  fontWeight: 800,
+                  lineHeight: 1,
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  cursor: "pointer",
+                }}
+              >
+                −
+              </button>
+            )}
+            {done && (
+              <div
+                style={{
+                  width: 27,
+                  height: 27,
+                  borderRadius: 999,
+                  background: "var(--text)",
+                  color: "var(--bg)",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  animation: "pop .35s ease",
+                }}
+              >
+                <Check size={15} color="var(--bg)" stroke={3} />
+              </div>
+            )}
           </div>
         )}
       </div>
@@ -165,10 +203,19 @@ export function Today({
       onTimer(id);
       return;
     }
+    const cur = valueOn(state.entries, habit.id, date);
     const wasDone = isDoneOn(state.entries, habit, date);
-    if (wasDone) haptic("light");
-    else notifySuccess();
+    const nowDone = nextTapValue(habit, cur) >= targetFor(habit);
+    // success buzz only when this tap crosses the goal
+    if (!wasDone && nowDone) notifySuccess();
+    else haptic("light");
     dispatch({ type: "tap_habit", id, date });
+  };
+
+  const dec = (id: string) => {
+    const cur = valueOn(state.entries, id, date);
+    haptic("light");
+    dispatch({ type: "set_habit_value", id, date, value: Math.max(0, cur - 1) });
   };
 
   const doneCount = habits.filter((h) => isDoneOn(state.entries, h, date)).length;
@@ -308,7 +355,9 @@ export function Today({
             progress={progressOn(state.entries, h, date)}
             progressText={progressTextOn(state.entries, h, date)}
             streak={streakOn(state.entries, h, date)}
+            value={valueOn(state.entries, h.id, date)}
             onTap={tap}
+            onDec={dec}
             onOpen={onEdit}
           />
         ))}

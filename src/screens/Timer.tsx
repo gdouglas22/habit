@@ -37,30 +37,29 @@ export function Timer({
   const targetMin = habit ? targetFor(habit) : 25;
   const alreadyMin = habit ? valueOn(state.entries, habit.id, date) : 0;
 
-  const [total, setTotal] = useState(targetMin * 60);
-  const [remaining, setRemaining] = useState(targetMin * 60);
+  const [total, setTotal] = useState(targetMin * 60); // planned seconds
+  const [elapsed, setElapsed] = useState(0); // seconds counted up this session
   const [running, setRunning] = useState(false);
-  const focusedRef = useRef(0); // seconds actually spent running
+  const notifiedRef = useRef(false);
 
-  // tick
+  // tick — counts up and keeps going past the goal into "overtime"
   useEffect(() => {
     if (!running) return;
     const id = setInterval(() => {
-      focusedRef.current += 1;
-      setRemaining((r) => {
-        if (r <= 1) {
-          setRunning(false);
+      setElapsed((e) => {
+        const next = e + 1;
+        if (!notifiedRef.current && next >= total) {
+          notifiedRef.current = true;
           notifySuccess();
-          return 0;
         }
-        return r - 1;
+        return next;
       });
     }, 1000);
     return () => clearInterval(id);
-  }, [running]);
+  }, [running, total]);
 
   const commitAndClose = () => {
-    const addMin = Math.round(focusedRef.current / 60);
+    const addMin = Math.round(elapsed / 60);
     if (addMin > 0 && habit) {
       dispatch({ type: "set_habit_value", id: habit.id, date, value: alreadyMin + addMin });
     }
@@ -85,10 +84,12 @@ export function Timer({
     return null;
   }
 
-  const progress = total > 0 ? (total - remaining) / total : 0;
+  const remaining = total - elapsed; // <= 0 means overtime
+  const overtime = remaining <= 0;
+  const progress = total > 0 ? Math.min(1, elapsed / total) : 0;
   const r = 130;
   const c = 2 * Math.PI * r;
-  const focusedMin = Math.round(focusedRef.current / 60);
+  const focusedMin = Math.round(elapsed / 60);
 
   return (
     <div className="app">
@@ -132,13 +133,13 @@ export function Timer({
                 cy="150"
                 r={r}
                 fill="none"
-                stroke={ACCENT}
+                stroke={overtime ? "#58B978" : ACCENT}
                 strokeWidth="14"
                 strokeLinecap="round"
                 strokeDasharray={c}
                 strokeDashoffset={c * (1 - progress)}
                 transform="rotate(-90 150 150)"
-                style={{ transition: "stroke-dashoffset .9s linear" }}
+                style={{ transition: "stroke-dashoffset .9s linear, stroke .3s" }}
               />
             </svg>
             <div
@@ -151,11 +152,14 @@ export function Timer({
                 justifyContent: "center",
               }}
             >
-              <div className="bignum" style={{ fontSize: 56, fontWeight: 900, color: "var(--text)" }}>
-                {fmt(remaining)}
+              <div
+                className="bignum"
+                style={{ fontSize: 56, fontWeight: 900, color: overtime ? "#3F9B5E" : "var(--text)" }}
+              >
+                {overtime ? `+${fmt(-remaining)}` : fmt(remaining)}
               </div>
-              <div style={{ fontSize: 14, fontWeight: 800, color: "var(--hint)", marginTop: 2 }}>
-                {running ? "идёт фокус" : remaining === 0 ? "готово!" : "на паузе"}
+              <div style={{ fontSize: 14, fontWeight: 800, color: overtime ? "#3F9B5E" : "var(--hint)", marginTop: 2 }}>
+                {overtime ? "сверх плана" : running ? "идёт фокус" : "на паузе"}
               </div>
             </div>
           </div>
@@ -166,16 +170,18 @@ export function Timer({
           <button
             onClick={() => {
               haptic("light");
-              setRemaining(total);
+              setRunning(false);
+              setElapsed(0);
+              notifiedRef.current = false;
             }}
             style={roundBtn(false)}
+            title="Сбросить"
           >
             ↺
           </button>
           <button
             onClick={() => {
               haptic("medium");
-              if (remaining === 0) return;
               setRunning((v) => !v);
             }}
             style={{ ...roundBtn(true), width: 80, height: 80 }}
@@ -186,9 +192,9 @@ export function Timer({
             onClick={() => {
               haptic("light");
               setTotal((t) => t + 300);
-              setRemaining((r) => r + 300);
             }}
             style={{ ...roundBtn(false), fontSize: 13, fontWeight: 800 }}
+            title="Продлить план на 5 минут"
           >
             +5м
           </button>

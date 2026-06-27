@@ -93,9 +93,9 @@ export function dayProgress(habits: Habit[], entries: EntryLog, date: string): n
 }
 
 // Next value when the user taps a habit card.
-// check: toggle 0/1. count/time: +1, wrapping to 0 once past target.
+// check: toggle 0/1. count: +1 with no upper bound (overachievement allowed —
+// use the minus control to correct). time habits open the timer instead.
 export function nextTapValue(h: Habit, current: number): number {
   if (h.type === "check") return current >= 1 ? 0 : 1;
-  const t = targetFor(h);
-  return current >= t ? 0 : current + 1;
+  return current + 1;
 }
