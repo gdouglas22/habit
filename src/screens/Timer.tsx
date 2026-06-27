@@ -12,11 +12,14 @@ import {
   hideBackButton,
 } from "../telegram";
 import { ChevronLeft } from "../icons";
+import { formatMinutes } from "../date";
 
 function fmt(sec: number): string {
-  const m = Math.floor(sec / 60);
+  const h = Math.floor(sec / 3600);
+  const m = Math.floor((sec % 3600) / 60);
   const s = sec % 60;
-  return `${m}:${String(s).padStart(2, "0")}`;
+  const mm = h > 0 ? String(m).padStart(2, "0") : String(m);
+  return h > 0 ? `${h}:${mm}:${String(s).padStart(2, "0")}` : `${mm}:${String(s).padStart(2, "0")}`;
 }
 
 // Concentration timer for a "time" habit. Counts down from the habit's target
@@ -114,7 +117,8 @@ export function Timer({
         <div style={{ textAlign: "center", marginTop: 14, marginBottom: 4 }}>
           <div style={{ fontSize: 22, fontWeight: 900, color: "var(--text)" }}>{habit.name}</div>
           <div style={{ fontSize: 13, fontWeight: 700, color: "var(--hint)", marginTop: 4 }}>
-            Цель {targetMin} мин · сегодня {alreadyMin + focusedMin} / {targetMin} мин
+            Цель {formatMinutes(targetMin)} · сегодня {formatMinutes(alreadyMin + focusedMin)} /{" "}
+            {formatMinutes(targetMin)}
           </div>
         </div>
 

@@ -22,6 +22,7 @@ import {
   showBackButton,
   hideBackButton,
 } from "../telegram";
+import { formatMinutes } from "../date";
 import { ChevronLeft, Bell, Trash } from "../icons";
 
 const label: React.CSSProperties = {
@@ -82,7 +83,6 @@ export function HabitEditor({
 
   const pal = HABIT_COLORS[draft.color] ?? HABIT_COLORS.coral;
   const BigIcon = HABIT_ICONS[draft.icon];
-  const showTarget = draft.type !== "check";
 
   return (
     <div className="app">
@@ -231,7 +231,9 @@ export function HabitEditor({
                   onClick={() => {
                     haptic("light");
                     if (o.key === "time") {
-                      set({ type: "time", unit: TIME_UNIT, target: (draft.target ?? 0) >= 5 ? draft.target : 25 });
+                      // keep an existing time target, otherwise default to 25 min
+                      const keep = draft.type === "time" ? draft.target : undefined;
+                      set({ type: "time", unit: TIME_UNIT, target: keep ?? 25 });
                     } else if (o.key === "count") {
                       set({ type: "count", unit: draft.unit === TIME_UNIT ? COUNT_UNITS[0] : draft.unit });
                     } else {
@@ -257,15 +259,15 @@ export function HabitEditor({
             })}
           </div>
 
-          {/* target */}
-          {showTarget && (
+          {/* target — duration picker for time, stepper+units for count */}
+          {draft.type === "time" && (
+            <DurationField target={draft.target ?? 25} onChange={(t) => set({ target: t })} />
+          )}
+          {draft.type === "count" && (
             <>
-              <div style={label}>{draft.type === "time" ? "Цель, минут" : "Цель"}</div>
-              <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: draft.type === "time" ? 22 : 14 }}>
-                <button
-                  onClick={() => set({ target: Math.max(1, (draft.target ?? 1) - (draft.type === "time" ? 5 : 1)) })}
-                  style={stepBtn}
-                >
+              <div style={label}>Цель</div>
+              <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 14 }}>
+                <button onClick={() => set({ target: Math.max(1, (draft.target ?? 1) - 1) })} style={stepBtn}>
                   −
                 </button>
                 <div
@@ -273,43 +275,34 @@ export function HabitEditor({
                   style={{ flex: 1, textAlign: "center", fontSize: 26, fontWeight: 900, color: "var(--text)" }}
                 >
                   {draft.target ?? 1}
-                  {draft.type === "time" && (
-                    <span style={{ fontSize: 15, fontWeight: 800, color: "var(--hint)" }}> мин</span>
-                  )}
                 </div>
-                <button
-                  onClick={() => set({ target: (draft.target ?? 1) + (draft.type === "time" ? 5 : 1) })}
-                  style={stepBtn}
-                >
+                <button onClick={() => set({ target: (draft.target ?? 1) + 1 })} style={stepBtn}>
                   +
                 </button>
               </div>
-              {/* count units (time is always minutes, no chips) */}
-              {draft.type === "count" && (
-                <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 22 }}>
-                  {COUNT_UNITS.map((u) => {
-                    const active = draft.unit === u;
-                    return (
-                      <button
-                        key={u}
-                        onClick={() => set({ unit: u })}
-                        style={{
-                          border: `1px solid ${active ? ACCENT : "var(--line)"}`,
-                          borderRadius: 999,
-                          padding: "7px 14px",
-                          fontWeight: 800,
-                          fontSize: 13,
-                          cursor: "pointer",
-                          background: active ? "rgba(242,107,122,.12)" : "transparent",
-                          color: active ? ACCENT : "var(--text)",
-                        }}
-                      >
-                        {u}
-                      </button>
-                    );
-                  })}
-                </div>
-              )}
+              <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 22 }}>
+                {COUNT_UNITS.map((u) => {
+                  const active = draft.unit === u;
+                  return (
+                    <button
+                      key={u}
+                      onClick={() => set({ unit: u })}
+                      style={{
+                        border: `1px solid ${active ? ACCENT : "var(--line)"}`,
+                        borderRadius: 999,
+                        padding: "7px 14px",
+                        fontWeight: 800,
+                        fontSize: 13,
+                        cursor: "pointer",
+                        background: active ? "rgba(242,107,122,.12)" : "transparent",
+                        color: active ? ACCENT : "var(--text)",
+                      }}
+                    >
+                      {u}
+                    </button>
+                  );
+                })}
+              </div>
             </>
           )}
 
@@ -485,3 +478,123 @@ const stepBtn: React.CSSProperties = {
   color: "var(--text)",
   cursor: "pointer",
 };
+
+const STEP_OPTIONS = [1, 5, 10, 15, 30];
+
+// Duration picker for "time" habits: separate hours/minutes steppers with a
+// configurable minute step. Target is stored as total minutes.
+function DurationField({
+  target,
+  onChange,
+}: {
+  target: number;
+  onChange: (min: number) => void;
+}) {
+  const [step, setStep] = useState(5);
+  const h = Math.floor(target / 60);
+  const m = target % 60;
+
+  return (
+    <>
+      <div style={label}>Цель — {formatMinutes(target)}</div>
+      <div style={{ display: "flex", gap: 10, marginBottom: 14 }}>
+        <DurationStepper
+          caption="часы"
+          value={h}
+          disableMinus={h === 0}
+          onMinus={() => onChange(Math.max(1, target - 60))}
+          onPlus={() => onChange(target + 60)}
+        />
+        <DurationStepper
+          caption="минуты"
+          value={m}
+          disableMinus={target <= 1}
+          onMinus={() => onChange(Math.max(1, target - step))}
+          onPlus={() => onChange(target + step)}
+        />
+      </div>
+      <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 22, flexWrap: "wrap" }}>
+        <span style={{ fontSize: 13, fontWeight: 800, color: "var(--hint)" }}>Шаг минут</span>
+        {STEP_OPTIONS.map((s) => {
+          const active = step === s;
+          return (
+            <button
+              key={s}
+              onClick={() => {
+                haptic("light");
+                setStep(s);
+              }}
+              style={{
+                border: `1px solid ${active ? ACCENT : "var(--line)"}`,
+                borderRadius: 999,
+                padding: "6px 12px",
+                fontWeight: 800,
+                fontSize: 13,
+                cursor: "pointer",
+                background: active ? "rgba(242,107,122,.12)" : "transparent",
+                color: active ? ACCENT : "var(--text)",
+              }}
+            >
+              {s}
+            </button>
+          );
+        })}
+      </div>
+    </>
+  );
+}
+
+function DurationStepper({
+  caption,
+  value,
+  disableMinus,
+  onMinus,
+  onPlus,
+}: {
+  caption: string;
+  value: number;
+  disableMinus: boolean;
+  onMinus: () => void;
+  onPlus: () => void;
+}) {
+  return (
+    <div
+      style={{
+        flex: 1,
+        background: "var(--card2)",
+        borderRadius: 16,
+        padding: "10px 10px 12px",
+        display: "flex",
+        flexDirection: "column",
+        alignItems: "center",
+        gap: 6,
+      }}
+    >
+      <div style={{ fontSize: 12, fontWeight: 800, color: "var(--hint)" }}>{caption}</div>
+      <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+        <button
+          onClick={() => {
+            if (disableMinus) return;
+            haptic("light");
+            onMinus();
+          }}
+          style={{ ...stepBtn, width: 38, height: 38, fontSize: 22, opacity: disableMinus ? 0.4 : 1, background: "var(--card)" }}
+        >
+          −
+        </button>
+        <div className="bignum" style={{ minWidth: 34, textAlign: "center", fontSize: 24, fontWeight: 900, color: "var(--text)" }}>
+          {value}
+        </div>
+        <button
+          onClick={() => {
+            haptic("light");
+            onPlus();
+          }}
+          style={{ ...stepBtn, width: 38, height: 38, fontSize: 22, background: "var(--card)" }}
+        >
+          +
+        </button>
+      </div>
+    </div>
+  );
+}

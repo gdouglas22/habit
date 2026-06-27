@@ -2,7 +2,7 @@
 // it all comes from the entries log keyed by date.
 import type { Habit, EntryLog, ActivityRow, FoodRow } from "../data";
 import { MACRO_GOALS } from "../data";
-import { addDays, weekdayMon0 } from "../date";
+import { addDays, weekdayMon0, formatMinutes } from "../date";
 
 export function activitiesOn(rows: ActivityRow[], date: string): ActivityRow[] {
   return rows.filter((a) => a.date === date);
@@ -49,8 +49,11 @@ export function progressOn(entries: EntryLog, h: Habit, date: string): number {
 
 export function progressTextOn(entries: EntryLog, h: Habit, date: string): string {
   if (isDoneOn(entries, h, date)) return "Выполнено";
-  if (h.type === "count" || h.type === "time") {
-    const v = valueOn(entries, h.id, date);
+  const v = valueOn(entries, h.id, date);
+  if (h.type === "time") {
+    return `${formatMinutes(v)} / ${formatMinutes(targetFor(h))}`;
+  }
+  if (h.type === "count") {
     return `${v} / ${targetFor(h)} ${h.unit ?? ""}`.trim();
   }
   return "Сегодня";

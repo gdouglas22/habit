@@ -40,6 +40,15 @@ export const RU_MONTHS_NOM = [
   "Декабрь",
 ];
 
+// "25 мин" / "1 ч 30 мин" / "2 ч"
+export function formatMinutes(min: number): string {
+  const m = Math.max(0, Math.round(min));
+  if (m < 60) return `${m} мин`;
+  const h = Math.floor(m / 60);
+  const r = m % 60;
+  return r ? `${h} ч ${r} мин` : `${h} ч`;
+}
+
 export function toISO(d: Date): string {
   const y = d.getFullYear();
   const m = String(d.getMonth() + 1).padStart(2, "0");
