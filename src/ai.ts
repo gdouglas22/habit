@@ -1,6 +1,6 @@
-// Anthropic nutrition lookup, called directly from the Mini App (browser).
-// Returns per-100g КБЖУ + fluid + the full micronutrient set as a strict tool.
-import { MICRONUTRIENTS, type Micros } from "./data";
+// Nutrition lookup with a free-database-first cascade:
+//   1) Open Food Facts (free, no key, CORS)  →  2) Anthropic AI  →  3) error
+import { MICRONUTRIENTS, emptyMicros, type Micros } from "./data";
 
 export interface NutritionResult {
   kcal: number;
@@ -9,6 +9,37 @@ export interface NutritionResult {
   carbs: number;
   fluid: number;
   micros: Micros;
+}
+
+export interface SourcedNutrition extends NutritionResult {
+  source: string; // human-readable origin, e.g. "Open Food Facts"
+  matchedName?: string;
+}
+
+// Reject obviously-bad results (all zero, negatives, impossible energy).
+export function isPlausibleNutrition(r: NutritionResult): boolean {
+  const macros = [r.kcal, r.protein, r.fat, r.carbs];
+  if (macros.some((v) => !Number.isFinite(v) || v < 0)) return false;
+  if (r.kcal > 1000) return false; // >1000 kcal / 100 g is impossible
+  if (r.kcal <= 0 && r.protein <= 0 && r.fat <= 0 && r.carbs <= 0) return false;
+  return true;
+}
+
+// Tier 1 — free database lookup via our own /api/nutrition proxy (Open Food
+// Facts server-side; avoids browser CORS / bot-blocking). null = not found.
+export async function lookupFreeDb(name: string): Promise<SourcedNutrition | null> {
+  let res: Response;
+  try {
+    res = await fetch(`/api/nutrition?q=${encodeURIComponent(name)}`);
+  } catch {
+    return null;
+  }
+  if (res.status === 404) return null;
+  if (!res.ok) return null;
+  const d = await res.json().catch(() => null);
+  if (!d || typeof d.kcal !== "number") return null;
+  const result: SourcedNutrition = { ...d, micros: { ...emptyMicros(), ...d.micros } };
+  return isPlausibleNutrition(result) ? result : null;
 }
 
 // Lightweight factual lookup — Haiku 4.5 is fast and cheap and handles the

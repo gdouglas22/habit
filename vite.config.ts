@@ -7,4 +7,10 @@ export default defineConfig({
   build: {
     outDir: "dist",
   },
+  // In dev, forward /api to the Express server (run `node server.js` alongside).
+  server: {
+    proxy: {
+      "/api": "http://localhost:3000",
+    },
+  },
 });

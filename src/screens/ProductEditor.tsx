@@ -1,8 +1,9 @@
 import { useState } from "react";
+import { ACCENT } from "../theme";
 import { useStore, newId } from "../store/store";
 import { MICRONUTRIENTS, emptyMicros, type Product } from "../data";
 import { haptic, notifySuccess } from "../telegram";
-import { lookupNutrition } from "../ai";
+import { lookupNutrition, lookupFreeDb, isPlausibleNutrition, type NutritionResult } from "../ai";
 import { EditorShell, fieldLabel } from "../components/EditorShell";
 import { Sparkles } from "../icons";
 
@@ -45,41 +46,77 @@ export function ProductEditor({
   const { state, dispatch } = useStore();
   const existing = productId ? state.products.find((p) => p.id === productId) : undefined;
   const [p, setP] = useState<Product>(existing ?? draft());
-  const [loading, setLoading] = useState(false);
+  // phase: idle → searching DB → offerAI (DB miss) → aiLoading
+  const [phase, setPhase] = useState<"idle" | "searching" | "offerAI" | "aiLoading">("idle");
   const [err, setErr] = useState<string | null>(null);
+  const [source, setSource] = useState<string | null>(null);
   const set = (patch: Partial<Product>) => setP((x) => ({ ...x, ...patch }));
   const setMicro = (key: string, v: number) =>
     setP((x) => ({ ...x, micros: { ...x.micros, [key]: v } }));
 
   const num = (v: number) => (Number.isFinite(v) ? +v.toFixed(2).replace(/\.00$/, "") : 0);
 
-  const fillWithAI = async () => {
+  const applyResult = (r: NutritionResult) => {
+    set({
+      kcal: num(r.kcal),
+      protein: num(r.protein),
+      fat: num(r.fat),
+      carbs: num(r.carbs),
+      fluid: num(r.fluid),
+      micros: { ...emptyMicros(), ...r.micros },
+    });
+  };
+
+  // Tier 1: free database (Open Food Facts).
+  const searchFree = async () => {
+    setErr(null);
+    setSource(null);
+    if (!p.name.trim()) {
+      setErr("Введи название продукта или блюда.");
+      return;
+    }
+    setPhase("searching");
+    haptic("light");
+    try {
+      const r = await lookupFreeDb(p.name.trim());
+      if (r) {
+        applyResult(r);
+        setSource(`Источник: ${r.source}${r.matchedName ? ` · ${r.matchedName}` : ""}`);
+        notifySuccess();
+        setPhase("idle");
+      } else {
+        // Tier 2: not found — offer the AI fallback
+        setPhase("offerAI");
+      }
+    } catch {
+      setPhase("offerAI");
+    }
+  };
+
+  // Tier 2: Anthropic AI, with a plausibility guard → Tier 3 error.
+  const askAI = async () => {
     setErr(null);
     if (!state.apiKey) {
       setErr("Добавь Anthropic API-ключ в Настройках, чтобы пользоваться ИИ.");
       return;
     }
-    if (!p.name.trim()) {
-      setErr("Введи название продукта или блюда.");
-      return;
-    }
-    setLoading(true);
+    setPhase("aiLoading");
     haptic("light");
     try {
       const r = await lookupNutrition(state.apiKey, p.name.trim());
-      set({
-        kcal: num(r.kcal),
-        protein: num(r.protein),
-        fat: num(r.fat),
-        carbs: num(r.carbs),
-        fluid: num(r.fluid),
-        micros: { ...emptyMicros(), ...r.micros },
-      });
+      if (!isPlausibleNutrition(r)) {
+        // Tier 3: garbage result
+        setErr("ИИ не смог распознать продукт. Заполни значения вручную.");
+        setPhase("idle");
+        return;
+      }
+      applyResult(r);
+      setSource("Источник: ИИ (оценка)");
       notifySuccess();
+      setPhase("idle");
     } catch (e) {
       setErr(e instanceof Error ? e.message : "Не удалось получить данные");
-    } finally {
-      setLoading(false);
+      setPhase("idle");
     }
   };
 
@@ -184,10 +221,10 @@ export function ProductEditor({
         ))}
       </div>
 
-      {/* AI fill */}
+      {/* Tier 1: free database search */}
       <button
-        onClick={fillWithAI}
-        disabled={loading}
+        onClick={searchFree}
+        disabled={phase === "searching" || phase === "aiLoading"}
         style={{
           display: "flex",
           alignItems: "center",
@@ -196,27 +233,64 @@ export function ProductEditor({
           width: "100%",
           border: "none",
           borderRadius: 14,
-          background: "linear-gradient(120deg,#F26B7A,#F2994A)",
-          color: "#fff",
+          background: "var(--text)",
+          color: "var(--bg)",
           fontWeight: 900,
           fontSize: 15,
           padding: 13,
-          cursor: loading ? "default" : "pointer",
-          opacity: loading ? 0.7 : 1,
+          cursor: "pointer",
+          opacity: phase === "searching" ? 0.7 : 1,
           marginBottom: 8,
-          boxShadow: "0 8px 20px -10px rgba(242,107,122,.8)",
         }}
       >
-        <Sparkles size={18} color="#fff" />
-        {loading ? "ИИ ищет данные…" : "Заполнить через ИИ"}
+        {phase === "searching" ? "Ищем в базах…" : "Найти по названию"}
       </button>
+
+      {/* Tier 2: AI fallback, offered only after a DB miss */}
+      {phase === "offerAI" && (
+        <>
+          <div style={{ fontSize: 13, fontWeight: 700, color: "var(--hint)", marginBottom: 8, lineHeight: 1.4 }}>
+            В бесплатных базах не нашлось «{p.name.trim()}». Спросить ИИ?
+          </div>
+          <button
+            onClick={askAI}
+            style={{
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              gap: 8,
+              width: "100%",
+              border: "none",
+              borderRadius: 14,
+              background: "linear-gradient(120deg,#F26B7A,#F2994A)",
+              color: "#fff",
+              fontWeight: 900,
+              fontSize: 15,
+              padding: 13,
+              cursor: "pointer",
+              marginBottom: 8,
+              boxShadow: "0 8px 20px -10px rgba(242,107,122,.8)",
+            }}
+          >
+            <Sparkles size={18} color="#fff" />
+            Спросить ИИ
+          </button>
+        </>
+      )}
+      {phase === "aiLoading" && (
+        <div style={{ fontSize: 13, fontWeight: 800, color: ACCENT, marginBottom: 8 }}>ИИ ищет данные…</div>
+      )}
+
       {err && (
         <div style={{ fontSize: 13, fontWeight: 700, color: "#E0556A", marginBottom: 12, lineHeight: 1.4 }}>
           {err}
         </div>
       )}
+      {source && (
+        <div style={{ fontSize: 12, fontWeight: 800, color: "#3F9B5E", marginBottom: 8 }}>{source}</div>
+      )}
       <div style={{ fontSize: 12, fontWeight: 700, color: "var(--hint)", marginBottom: 18, lineHeight: 1.4 }}>
-        Значения на 100 г. Заполни вручную или через ИИ.
+        Значения на 100 г. Можно заполнить вручную.
       </div>
 
       {/* macros */}
