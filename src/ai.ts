@@ -42,10 +42,9 @@ export async function lookupFreeDb(name: string): Promise<SourcedNutrition | nul
   return isPlausibleNutrition(result) ? result : null;
 }
 
-// Lightweight factual lookup — Haiku 4.5 is fast and cheap and handles the
-// structured tool output fine. Bump to "claude-sonnet-4-6" if you want stronger
-// recall on rare products / micronutrients.
-const MODEL = "claude-haiku-4-5";
+// Factual nutrition lookup — Sonnet 4.6 balances cost and stronger recall on
+// rarer products / micronutrients. Drop to "claude-haiku-4-5" for cheaper/faster.
+const MODEL = "claude-sonnet-4-6";
 
 export async function lookupNutrition(apiKey: string, name: string): Promise<NutritionResult> {
   const microProps: Record<string, unknown> = {};
