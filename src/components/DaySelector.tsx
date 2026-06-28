@@ -1,6 +1,6 @@
-import { ACCENT } from "../theme";
+import { ACCENT, BREAK } from "../theme";
 import { useStore } from "../store/store";
-import { dayProgress } from "../store/selectors";
+import { dayProgress, isBreak } from "../store/selectors";
 import { haptic } from "../telegram";
 import { RU_WEEKDAYS_SHORT, weekDates, dayOfMonth, todayISO } from "../date";
 
@@ -40,6 +40,7 @@ export function DaySelector() {
         const selected = iso === state.selectedDate;
         const isToday = iso === today;
         const pct = dayProgress(state.habits, state.entries, iso);
+        const onBreak = isBreak(state.breaks, iso);
         return (
           <div
             key={iso}
@@ -69,17 +70,34 @@ export function DaySelector() {
                 justifyContent: "center",
               }}
             >
-              <Ring pct={pct} highlight={selected || isToday} />
-              <span
-                style={{
-                  position: "relative",
-                  fontSize: 14,
-                  fontWeight: 800,
-                  color: selected || isToday ? ACCENT : "var(--text)",
-                }}
-              >
-                {dayOfMonth(iso)}
-              </span>
+              {onBreak ? (
+                <>
+                  <div
+                    style={{
+                      position: "absolute",
+                      inset: 0,
+                      borderRadius: 999,
+                      background: "rgba(52,179,163,.16)",
+                      border: selected || isToday ? `2px solid ${BREAK}` : "none",
+                    }}
+                  />
+                  <span style={{ position: "relative", fontSize: 15 }}>🌴</span>
+                </>
+              ) : (
+                <>
+                  <Ring pct={pct} highlight={selected || isToday} />
+                  <span
+                    style={{
+                      position: "relative",
+                      fontSize: 14,
+                      fontWeight: 800,
+                      color: selected || isToday ? ACCENT : "var(--text)",
+                    }}
+                  >
+                    {dayOfMonth(iso)}
+                  </span>
+                </>
+              )}
             </div>
           </div>
         );

@@ -25,6 +25,7 @@ export function migrate(raw: unknown): AppState {
     products: arr(r.products),
     foods: arr(r.foods),
     entries: obj(r.entries),
+    breaks: arr<string>(r.breaks).filter((d) => typeof d === "string"),
     profile: obj(r.profile),
     apiKey: typeof r.apiKey === "string" ? r.apiKey : undefined,
     timer: r.timer && typeof r.timer === "object" ? (r.timer as AppState["timer"]) : null,

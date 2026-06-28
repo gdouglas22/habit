@@ -1,10 +1,10 @@
 import { useState } from "react";
-import { ACCENT, ACCENT2 } from "../theme";
+import { ACCENT, ACCENT2, BREAK } from "../theme";
 import { useStore } from "../store/store";
 import {
   dayProgress,
-  scheduledHabits,
-  isDoneOn,
+  isPerfectDay,
+  isBreak,
   streakOn,
   foodKcalOn,
   activityKcalOn,
@@ -65,11 +65,10 @@ export function Calendar({ onPick }: { onPick: () => void }) {
   let statA: { icon: React.ReactNode; label: string; value: string; unit: string };
   let statB: { icon: React.ReactNode; label: string; value: string; unit: string };
   if (cat === "habits") {
-    const best = Math.max(0, ...state.habits.map((h) => streakOn(state.entries, h, today)));
-    const perfect = monthDays.filter((iso) => {
-      const due = scheduledHabits(state.habits, iso);
-      return due.length > 0 && due.every((h) => isDoneOn(state.entries, h, iso));
-    }).length;
+    const best = Math.max(0, ...state.habits.map((h) => streakOn(state.entries, h, today, state.breaks)));
+    const perfect = monthDays.filter((iso) =>
+      isPerfectDay(state.habits, state.entries, state.breaks, iso)
+    ).length;
     statA = { icon: <Flame size={15} color={ACCENT2} fill={ACCENT2} stroke={1.5} />, label: "Лучшая серия", value: String(best), unit: "дней" };
     statB = { icon: <Star size={15} color={ACCENT2} fill={ACCENT2} stroke={1.5} />, label: "Идеальных", value: String(perfect), unit: "дней" };
   } else if (cat === "activity") {
@@ -176,8 +175,9 @@ function cellProps(
   state: ReturnType<typeof useStore>["state"],
   weight: number | undefined,
   calTarget: number
-): { ring?: { pct: number; color: string }; fill?: string } {
+): { ring?: { pct: number; color: string }; fill?: string; breakDay?: boolean } {
   if (cat === "habits") {
+    if (isBreak(state.breaks, iso)) return { breakDay: true };
     return { ring: { pct: dayProgress(state.habits, state.entries, iso), color: ACCENT } };
   }
   if (cat === "activity") {
@@ -195,6 +195,7 @@ function DayCell({
   future,
   ring,
   fill,
+  breakDay,
   onClick,
 }: {
   day: number;
@@ -203,11 +204,41 @@ function DayCell({
   future: boolean;
   ring?: { pct: number; color: string };
   fill?: string;
+  breakDay?: boolean;
   onClick: () => void;
 }) {
   const r = 15;
   const c = 2 * Math.PI * r;
   const hi = isToday || selected;
+  if (breakDay) {
+    return (
+      <div
+        onClick={onClick}
+        style={{
+          aspectRatio: "1",
+          position: "relative",
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+          cursor: "pointer",
+          opacity: future ? 0.5 : 1,
+        }}
+      >
+        <div
+          style={{
+            position: "absolute",
+            inset: 3,
+            borderRadius: 999,
+            background: "rgba(52,179,163,.16)",
+            border: hi ? `2px solid ${BREAK}` : "none",
+          }}
+        />
+        <span style={{ position: "relative", fontSize: 14 }} title="Каникулы">
+          🌴
+        </span>
+      </div>
+    );
+  }
   return (
     <div
       onClick={onClick}

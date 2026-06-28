@@ -1,4 +1,4 @@
-import { ACCENT, ACCENT_GRADIENT, HABIT_COLORS } from "../theme";
+import { ACCENT, ACCENT_GRADIENT, BREAK, BREAK_GRADIENT, HABIT_COLORS } from "../theme";
 import { haptic, notifySuccess } from "../telegram";
 import { type Habit } from "../data";
 import { useStore } from "../store/store";
@@ -11,8 +11,12 @@ import {
   valueOn,
   targetFor,
   nextTapValue,
+  isBreak,
+  breakBudget,
+  canTakeBreak,
 } from "../store/selectors";
-import { todayISO, formatWeekdayFull, formatDayMonth } from "../date";
+import { fmtNum } from "../num";
+import { todayISO, fromISO, formatWeekdayFull, formatDayMonth } from "../date";
 import { HABIT_ICONS } from "../habitMeta";
 import { Header } from "../components/Header";
 import { DaySelector } from "../components/DaySelector";
@@ -183,6 +187,133 @@ function HabitCard({ h, done, progress, progressText, streak, value, onTap, onDe
   );
 }
 
+// Break ("каникулы") control: a calm teal banner while a day is paused, or a
+// compact card with the remaining monthly budget to start one.
+function BreakSection({
+  onBreak,
+  remaining,
+  canBreak,
+  onToggle,
+}: {
+  onBreak: boolean;
+  remaining: number;
+  canBreak: boolean;
+  onToggle: () => void;
+}) {
+  if (onBreak) {
+    return (
+      <div
+        style={{
+          display: "flex",
+          alignItems: "center",
+          gap: 13,
+          background: BREAK_GRADIENT,
+          borderRadius: 20,
+          padding: "16px 18px",
+          marginBottom: 14,
+          boxShadow: "0 8px 22px -8px rgba(52,179,163,.6)",
+          animation: "fadeup .4s ease",
+        }}
+      >
+        <div
+          style={{
+            width: 42,
+            height: 42,
+            borderRadius: 999,
+            background: "rgba(255,255,255,.25)",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            fontSize: 22,
+            flex: "none",
+          }}
+        >
+          🌴
+        </div>
+        <div style={{ color: "#fff", flex: 1, minWidth: 0 }}>
+          <div style={{ fontSize: 18, fontWeight: 900, lineHeight: 1.1 }}>Каникулы</div>
+          <div style={{ fontSize: 13, fontWeight: 700, opacity: 0.9, marginTop: 2 }}>
+            Привычки на паузе — серия сохранится
+          </div>
+        </div>
+        <button
+          onClick={onToggle}
+          style={{
+            flex: "none",
+            border: "none",
+            borderRadius: 999,
+            background: "rgba(255,255,255,.25)",
+            color: "#fff",
+            fontWeight: 800,
+            fontSize: 13,
+            padding: "9px 14px",
+            cursor: "pointer",
+          }}
+        >
+          Вернуться
+        </button>
+      </div>
+    );
+  }
+  return (
+    <div
+      style={{
+        display: "flex",
+        alignItems: "center",
+        gap: 12,
+        background: "var(--card)",
+        borderRadius: 18,
+        padding: "12px 14px",
+        marginBottom: 14,
+        boxShadow: "0 1px 2px rgba(60,40,30,.05)",
+      }}
+    >
+      <div
+        style={{
+          width: 38,
+          height: 38,
+          borderRadius: 12,
+          background: "rgba(52,179,163,.14)",
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+          fontSize: 19,
+          flex: "none",
+        }}
+      >
+        🌴
+      </div>
+      <div style={{ flex: 1, minWidth: 0 }}>
+        <div style={{ fontSize: 14, fontWeight: 800, color: "var(--text)", lineHeight: 1.15 }}>
+          Нужен перерыв?
+        </div>
+        <div style={{ fontSize: 12, fontWeight: 700, color: "var(--hint)", marginTop: 2 }}>
+          {canBreak
+            ? `Осталось ${fmtNum(remaining)} в этом месяце`
+            : "Перерывы на месяц закончились"}
+        </div>
+      </div>
+      <button
+        onClick={onToggle}
+        disabled={!canBreak}
+        style={{
+          flex: "none",
+          border: "none",
+          borderRadius: 999,
+          background: canBreak ? BREAK : "var(--card2)",
+          color: canBreak ? "#fff" : "var(--hint)",
+          fontWeight: 800,
+          fontSize: 13,
+          padding: "9px 15px",
+          cursor: canBreak ? "pointer" : "default",
+        }}
+      >
+        Взять
+      </button>
+    </div>
+  );
+}
+
 export function Today({
   onEdit,
   onTimer,
@@ -194,6 +325,33 @@ export function Today({
   const date = state.selectedDate;
   const isToday = date === todayISO();
   const habits = scheduledHabits(state.habits, date);
+
+  const doneCount = habits.filter((h) => isDoneOn(state.entries, h, date)).length;
+  const allDone = habits.length > 0 && doneCount === habits.length;
+
+  const onBreak = isBreak(state.breaks, date);
+  const d = fromISO(date);
+  const budget = breakBudget(
+    state.habits,
+    state.entries,
+    state.breaks,
+    d.getFullYear(),
+    d.getMonth(),
+    todayISO()
+  );
+  const canBreak = canTakeBreak(budget);
+  const toggleBreak = () => {
+    // Excusing an already-perfect day makes no sense (and would refund its
+    // earned 0.25, over-spending the budget). Only block *taking* — cancelling
+    // an existing break is always allowed.
+    if (!onBreak && (allDone || !canBreak)) {
+      haptic("light");
+      return;
+    }
+    if (onBreak) haptic("light");
+    else notifySuccess();
+    dispatch({ type: "toggle_break", date });
+  };
 
   const tap = (id: string) => {
     const habit = state.habits.find((h) => h.id === id)!;
@@ -218,8 +376,6 @@ export function Today({
     dispatch({ type: "set_habit_value", id, date, value: Math.max(0, cur - 1) });
   };
 
-  const doneCount = habits.filter((h) => isDoneOn(state.entries, h, date)).length;
-  const allDone = habits.length > 0 && doneCount === habits.length;
   const pct = habits.length ? Math.round((doneCount / habits.length) * 100) : 0;
 
   return (
@@ -274,7 +430,16 @@ export function Today({
 
       <DaySelector />
 
-      {allDone && (
+      {(onBreak || (!allDone && habits.length > 0)) && (
+        <BreakSection
+          onBreak={onBreak}
+          remaining={Math.max(0, budget.remaining)}
+          canBreak={canBreak}
+          onToggle={toggleBreak}
+        />
+      )}
+
+      {!onBreak && allDone && (
         <div
           style={{
             display: "flex",
@@ -312,7 +477,7 @@ export function Today({
         </div>
       )}
 
-      {!allDone && (
+      {!onBreak && !allDone && (
         <div
           style={{
             display: "flex",
@@ -346,7 +511,15 @@ export function Today({
         </div>
       )}
 
-      <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+      <div
+        style={{
+          display: "flex",
+          flexDirection: "column",
+          gap: 10,
+          opacity: onBreak ? 0.5 : 1,
+          transition: "opacity .3s ease",
+        }}
+      >
         {habits.map((h) => (
           <HabitCard
             key={h.id}
@@ -354,7 +527,7 @@ export function Today({
             done={isDoneOn(state.entries, h, date)}
             progress={progressOn(state.entries, h, date)}
             progressText={progressTextOn(state.entries, h, date)}
-            streak={streakOn(state.entries, h, date)}
+            streak={streakOn(state.entries, h, date, state.breaks)}
             value={valueOn(state.entries, h.id, date)}
             onTap={tap}
             onDec={dec}

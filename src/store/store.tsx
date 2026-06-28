@@ -34,6 +34,7 @@ export interface AppState {
   products: Product[]; // product/dish database
   foods: FoodEntry[]; // diary meals
   entries: EntryLog;
+  breaks: string[]; // ISO dates marked as a habit break ("каникулы")
   selectedDate: string; // ISO; the "current" calendar day in the UI
   apiKey?: string; // Anthropic key for AI lookup (device-local, not synced)
   profile: Profile; // user data (age, weight, height, sex, …)
@@ -48,6 +49,7 @@ const initialState: AppState = {
   products: PRODUCTS,
   foods: FOODS,
   entries: ENTRIES,
+  breaks: [],
   selectedDate: todayISO(),
   profile: {},
   timer: null,
@@ -56,6 +58,7 @@ const initialState: AppState = {
 export type Action =
   | { type: "tap_habit"; id: string; date: string }
   | { type: "set_habit_value"; id: string; date: string; value: number }
+  | { type: "toggle_break"; date: string }
   | { type: "select_date"; date: string }
   | { type: "add_habit"; habit: Habit }
   | { type: "update_habit"; habit: Habit }
@@ -97,6 +100,15 @@ function reducer(state: AppState, action: Action): AppState {
         ...state,
         entries: setEntry(state.entries, action.id, action.date, Math.max(0, action.value)),
       };
+    case "toggle_break": {
+      const has = state.breaks.includes(action.date);
+      return {
+        ...state,
+        breaks: has
+          ? state.breaks.filter((d) => d !== action.date)
+          : [...state.breaks, action.date],
+      };
+    }
     case "select_date":
       return { ...state, selectedDate: action.date };
     case "add_habit":

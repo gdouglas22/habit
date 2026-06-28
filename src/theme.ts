@@ -17,6 +17,9 @@ export interface ThemeTokens {
 export const ACCENT = "#F26B7A";
 export const ACCENT2 = "#F2994A";
 export const ACCENT_GRADIENT = "linear-gradient(120deg,#F26B7A,#F2994A)";
+// Calm teal for "каникулы" (break days) — a restful counterpoint to the accent.
+export const BREAK = "#34B3A3";
+export const BREAK_GRADIENT = "linear-gradient(120deg,#34B3A3,#4FC3B3)";
 
 export const THEMES: Record<ThemeName, ThemeTokens> = {
   light: {
