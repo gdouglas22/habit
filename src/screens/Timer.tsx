@@ -69,9 +69,20 @@ export function Timer({ habitId, onClose }: { habitId: string; onClose: () => vo
   }, [running]);
   useEffect(() => () => keepAwake(false), []);
 
-  const phaseTotal = session ? (session.phase === "work" ? session.workSec : session.breakSec) : 0;
-  const elapsed = session ? liveElapsed(session) : 0;
-  const remaining = phaseTotal - elapsed;
+  const banked = session && habit ? valueOn(state.entries, habit.id, date) : 0; // minutes logged today
+  const elapsed = session ? liveElapsed(session) : 0; // current run, seconds
+  const phaseTotal = session
+    ? session.pomodoro
+      ? session.phase === "work"
+        ? session.workSec
+        : session.breakSec
+      : session.workSec // non-pomodoro: the daily goal
+    : 0;
+  // Dial: pomodoro counts the current interval; non-pomodoro counts the whole
+  // day toward the goal (seeded from already-logged minutes) so it never jumps
+  // back to the full goal on reopen / Готово.
+  const dialElapsed = session && !session.pomodoro ? banked * 60 + elapsed : elapsed;
+  const remaining = phaseTotal - dialElapsed;
 
   const bankMinutes = (min: number) => {
     if (!habit || min <= 0) return;
@@ -146,10 +157,10 @@ export function Timer({ habitId, onClose }: { habitId: string; onClose: () => vo
   if (!session) return <div className="app" />;
 
   const targetMin = targetFor(habit);
-  const doneMin = valueOn(state.entries, habit.id, date) + (session.phase === "work" ? Math.floor(elapsed / 60) : 0);
+  const doneMin = banked + (session.phase === "work" ? Math.floor(elapsed / 60) : 0);
   const isBreak = session.phase === "break";
   const overtime = !session.pomodoro && remaining <= 0;
-  const progress = phaseTotal > 0 ? Math.min(1, elapsed / phaseTotal) : 0;
+  const progress = phaseTotal > 0 ? Math.min(1, dialElapsed / phaseTotal) : 0;
   const ringColor = isBreak ? BREAK_COLOR : overtime ? BREAK_COLOR : ACCENT;
   const r = 130;
   const c = 2 * Math.PI * r;
