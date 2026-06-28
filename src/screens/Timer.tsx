@@ -115,19 +115,23 @@ export function Timer({ habitId, onClose }: { habitId: string; onClose: () => vo
     }
   });
 
-  // commit + close (also wired to Telegram MainButton/BackButton)
-  const commitAndClose = () => {
+  // "Готово": bank the focused minutes and finish the session.
+  const commitAndFinish = () => {
     if (session && session.phase === "work") {
       bankMinutes(Math.floor(liveElapsed(session) / 60));
     }
     dispatch({ type: "set_timer", timer: null });
     onClose();
   };
-  const saveRef = useRef(commitAndClose);
-  saveRef.current = commitAndClose;
+  // Back / close: just leave the view. The session keeps running and the time
+  // keeps accumulating (resumes on reopen) — nothing is reset.
+  const closeRef = useRef(onClose);
+  closeRef.current = onClose;
+  const finishRef = useRef(commitAndFinish);
+  finishRef.current = commitAndFinish;
   useEffect(() => {
-    showMainButton("Готово", () => saveRef.current());
-    showBackButton(() => saveRef.current());
+    showMainButton("Готово", () => finishRef.current());
+    showBackButton(() => closeRef.current());
     return () => {
       hideMainButton();
       hideBackButton();
@@ -184,7 +188,7 @@ export function Timer({ habitId, onClose }: { habitId: string; onClose: () => vo
     <div className="app">
       <div className="screen noscroll" style={{ display: "flex", flexDirection: "column", padding: "14px 16px 40px" }}>
         <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 8 }}>
-          <button onClick={commitAndClose} style={iconBtn}>
+          <button onClick={onClose} style={iconBtn}>
             <ChevronLeft size={18} />
           </button>
           <div style={{ fontSize: 19, fontWeight: 900, color: "var(--text)", flex: 1 }}>Таймер</div>
@@ -272,7 +276,7 @@ export function Timer({ habitId, onClose }: { habitId: string; onClose: () => vo
 
         {!hasTelegram && (
           <button
-            onClick={commitAndClose}
+            onClick={commitAndFinish}
             style={{
               marginTop: 36,
               width: "100%",
