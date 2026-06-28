@@ -26,6 +26,26 @@ body {
   min-height: 100dvh;
 }
 
+/* On wide screens (desktop / Telegram Web), frame the app as a centered
+   phone-width column instead of stretching across the whole viewport. */
+@media (min-width: 540px) {
+  #root {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: var(--card2);
+    padding: 20px 0;
+  }
+  .app {
+    max-width: 430px;
+    width: 100%;
+    height: min(900px, calc(100dvh - 40px));
+    border-radius: 28px;
+    overflow: hidden;
+    box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.05), 0 30px 70px -25px rgba(0, 0, 0, 0.4);
+  }
+}
+
 button,
 input {
   font-family: inherit;
