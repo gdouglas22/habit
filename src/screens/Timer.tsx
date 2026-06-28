@@ -14,6 +14,7 @@ import {
 import { ChevronLeft, Play, Pause, RotateCcw, SkipForward, Volume, VolumeOff } from "../icons";
 import { formatMinutes } from "../date";
 import { resumeAudio, playTick, playChime, isMuted, setMuted } from "../sound";
+import { keepAwake } from "../wakelock";
 import type { TimerSession } from "../data";
 
 const BREAK_COLOR = "#3FA86A";
@@ -60,6 +61,13 @@ export function Timer({ habitId, onClose }: { habitId: string; onClose: () => vo
     const id = setInterval(() => force((x) => x + 1), 250);
     return () => clearInterval(id);
   }, []);
+
+  // Keep the screen awake while the timer is running.
+  const running = !!session && session.running;
+  useEffect(() => {
+    keepAwake(running);
+  }, [running]);
+  useEffect(() => () => keepAwake(false), []);
 
   const phaseTotal = session ? (session.phase === "work" ? session.workSec : session.breakSec) : 0;
   const elapsed = session ? liveElapsed(session) : 0;
