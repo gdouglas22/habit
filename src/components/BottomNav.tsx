@@ -25,7 +25,7 @@ export function BottomNav({
         display: "flex",
         background: "var(--header)",
         borderTop: "1px solid var(--line)",
-        padding: "8px 6px calc(8px + env(safe-area-inset-bottom))",
+        padding: "8px 6px calc(8px + var(--tg-bottom))",
       }}
     >
       {ITEMS.map(({ key, label, Icon }) => {

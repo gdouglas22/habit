@@ -1,3 +1,12 @@
+:root {
+  /* Safe-area insets. Defaults from the browser; Telegram overrides these
+     with its own safeAreaInset + contentSafeAreaInset (see telegram.ts). */
+  --tg-top: env(safe-area-inset-top, 0px);
+  --tg-bottom: env(safe-area-inset-bottom, 0px);
+  --tg-left: env(safe-area-inset-left, 0px);
+  --tg-right: env(safe-area-inset-right, 0px);
+}
+
 * {
   box-sizing: border-box;
 }
@@ -56,12 +65,16 @@ input {
   }
 }
 
-/* App shell — fills the Telegram viewport */
+/* App shell — fills the Telegram viewport, padded for safe areas so content
+   never sits under the iOS status bar or Telegram's header. */
 .app {
   display: flex;
   flex-direction: column;
   height: 100vh;
   height: 100dvh;
+  padding-top: var(--tg-top);
+  padding-left: var(--tg-left);
+  padding-right: var(--tg-right);
   background: var(--bg);
   color: var(--text);
 }
@@ -71,7 +84,7 @@ input {
   -webkit-overflow-scrolling: touch;
 }
 .screen-pad {
-  padding: 18px 16px calc(96px + env(safe-area-inset-bottom));
+  padding: 18px 16px calc(96px + var(--tg-bottom));
 }
 
 .bignum {

@@ -27,6 +27,13 @@ interface TgHaptic {
   selectionChanged(): void;
 }
 
+interface TgInset {
+  top: number;
+  bottom: number;
+  left: number;
+  right: number;
+}
+
 export interface TelegramWebApp {
   ready(): void;
   expand(): void;
@@ -35,6 +42,8 @@ export interface TelegramWebApp {
   viewportStableHeight?: number;
   setHeaderColor(color: string): void;
   setBackgroundColor(color: string): void;
+  safeAreaInset?: TgInset; // device safe area (status bar / notch)
+  contentSafeAreaInset?: TgInset; // area below Telegram's own header
   onEvent(event: string, cb: () => void): void;
   offEvent(event: string, cb: () => void): void;
   MainButton: TgMainButton;
@@ -57,10 +66,32 @@ export const tg: TelegramWebApp | undefined = window.Telegram?.WebApp;
 // real client session as "Telegram" so the in-page controls show otherwise.
 export const hasTelegram = !!tg && tg.platform !== "unknown";
 
+// Push Telegram's safe-area + content-safe-area insets into CSS variables so
+// the layout never hides under the iOS status bar or Telegram's header.
+function applySafeAreas(): void {
+  if (!tg) return;
+  // Old clients (Bot API < 8.0) lack the inset API — leave the CSS env()
+  // fallback in place instead of overriding it with zeros.
+  if (!tg.safeAreaInset && !tg.contentSafeAreaInset) return;
+  const zero = { top: 0, bottom: 0, left: 0, right: 0 };
+  const sa = tg.safeAreaInset ?? zero;
+  const ca = tg.contentSafeAreaInset ?? zero;
+  const px = (n: number) => `${Math.max(0, Math.round(n || 0))}px`;
+  const root = document.documentElement.style;
+  root.setProperty("--tg-top", px(sa.top + ca.top));
+  root.setProperty("--tg-bottom", px(sa.bottom + ca.bottom));
+  root.setProperty("--tg-left", px(sa.left + ca.left));
+  root.setProperty("--tg-right", px(sa.right + ca.right));
+}
+
 export function initTelegram(): void {
   if (!tg) return;
   tg.ready();
   tg.expand();
+  applySafeAreas();
+  tg.onEvent("safeAreaChanged", applySafeAreas);
+  tg.onEvent("contentSafeAreaChanged", applySafeAreas);
+  tg.onEvent("viewportChanged", applySafeAreas);
 }
 
 export function preferredTheme(): ThemeName {
