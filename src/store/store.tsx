@@ -19,6 +19,7 @@ import {
   type FoodEntry,
   type EntryLog,
   type Profile,
+  type TimerSession,
 } from "../data";
 import { todayISO } from "../date";
 import { nextTapValue, valueOn } from "./selectors";
@@ -36,6 +37,7 @@ export interface AppState {
   selectedDate: string; // ISO; the "current" calendar day in the UI
   apiKey?: string; // Anthropic key for AI lookup (device-local, not synced)
   profile: Profile; // user data (age, weight, height, sex, …)
+  timer: TimerSession | null; // active/resumable timer
   schemaVersion?: number; // migration marker
 }
 
@@ -48,6 +50,7 @@ const initialState: AppState = {
   entries: ENTRIES,
   selectedDate: todayISO(),
   profile: {},
+  timer: null,
 };
 
 export type Action =
@@ -71,6 +74,7 @@ export type Action =
   | { type: "delete_product"; id: string }
   | { type: "set_api_key"; apiKey: string }
   | { type: "update_profile"; patch: Partial<Profile> }
+  | { type: "set_timer"; timer: TimerSession | null }
   | { type: "hydrate"; state: AppState };
 
 function setEntry(entries: EntryLog, id: string, date: string, value: number): EntryLog {
@@ -152,6 +156,8 @@ function reducer(state: AppState, action: Action): AppState {
       return { ...state, apiKey: action.apiKey };
     case "update_profile":
       return { ...state, profile: { ...state.profile, ...action.patch } };
+    case "set_timer":
+      return { ...state, timer: action.timer };
     case "hydrate":
       // replace with remote data, but keep device-local apiKey + current day
       return { ...action.state, apiKey: state.apiKey, selectedDate: state.selectedDate };

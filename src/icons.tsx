@@ -135,6 +135,60 @@ export const Sparkles = (p: IconProps) =>
     p
   );
 
+export const Play = (p: IconProps) =>
+  svg(<polygon points="7 4 20 12 7 20 7 4" />, {
+    size: p.size,
+    fill: p.color ?? "currentColor",
+    stroke: 0,
+  });
+
+export const Pause = (p: IconProps) =>
+  svg(
+    <>
+      <rect x="6" y="4" width="4" height="16" rx="1" />
+      <rect x="14" y="4" width="4" height="16" rx="1" />
+    </>,
+    { size: p.size, fill: p.color ?? "currentColor", stroke: 0 }
+  );
+
+export const RotateCcw = (p: IconProps) =>
+  svg(
+    <>
+      <path d="M3 12a9 9 0 1 0 3-6.7L3 8" />
+      <path d="M3 3v5h5" />
+    </>,
+    p
+  );
+
+export const SkipForward = (p: IconProps) =>
+  svg(
+    <>
+      <polygon points="5 4 15 12 5 20 5 4" />
+      <line x1="19" y1="5" x2="19" y2="19" />
+    </>,
+    p
+  );
+
+export const Volume = (p: IconProps) =>
+  svg(
+    <>
+      <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5" />
+      <path d="M15.5 8.5a5 5 0 0 1 0 7" />
+      <path d="M18.5 6a9 9 0 0 1 0 12" />
+    </>,
+    p
+  );
+
+export const VolumeOff = (p: IconProps) =>
+  svg(
+    <>
+      <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5" />
+      <line x1="22" y1="9" x2="16" y2="15" />
+      <line x1="16" y1="9" x2="22" y2="15" />
+    </>,
+    p
+  );
+
 export const Database = (p: IconProps) =>
   svg(
     <>

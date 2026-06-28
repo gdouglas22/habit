@@ -89,6 +89,27 @@ export function dayNutrition(foods: FoodEntry[], products: Product[]): Nutrition
   return foods.reduce((acc, e) => add(acc, entryNutrition(e, products)), zero());
 }
 
+// kcal eaten on a date (0 if nothing logged).
+export function foodKcalOn(foods: FoodEntry[], products: Product[], date: string): number {
+  return dayNutrition(foodsOn(foods, date), products).kcal;
+}
+
+// kcal burned on a date across all activities.
+export function activityKcalOn(
+  activities: ActivityRow[],
+  types: ActivityType[],
+  date: string,
+  weightKg?: number
+): number {
+  return activitiesOn(activities, date).reduce((s, a) => s + activityKcal(a, types, weightKg), 0);
+}
+
+// 1 = at target, 0 = far off in either direction (under or over).
+export function calorieCloseness(eaten: number, target: number): number {
+  if (!target || target <= 0) return 0;
+  return Math.max(0, Math.min(1, 1 - Math.abs(eaten - target) / target));
+}
+
 export function targetFor(h: Habit): number {
   if (h.type === "count" || h.type === "time") return Math.max(1, h.target ?? 1);
   return 1;

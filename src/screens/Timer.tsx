@@ -11,62 +11,110 @@ import {
   showBackButton,
   hideBackButton,
 } from "../telegram";
-import { ChevronLeft } from "../icons";
+import { ChevronLeft, Play, Pause, RotateCcw, SkipForward, Volume, VolumeOff } from "../icons";
 import { formatMinutes } from "../date";
+import { resumeAudio, playTick, playChime, isMuted, setMuted } from "../sound";
+import type { TimerSession } from "../data";
+
+const BREAK_COLOR = "#3FA86A";
 
 function fmt(sec: number): string {
-  const h = Math.floor(sec / 3600);
-  const m = Math.floor((sec % 3600) / 60);
-  const s = sec % 60;
+  const s = Math.max(0, Math.floor(sec));
+  const h = Math.floor(s / 3600);
+  const m = Math.floor((s % 3600) / 60);
+  const ss = s % 60;
   const mm = h > 0 ? String(m).padStart(2, "0") : String(m);
-  return h > 0 ? `${h}:${mm}:${String(s).padStart(2, "0")}` : `${mm}:${String(s).padStart(2, "0")}`;
+  return h > 0 ? `${h}:${mm}:${String(ss).padStart(2, "0")}` : `${mm}:${String(ss).padStart(2, "0")}`;
 }
 
-// Concentration timer for a "time" habit. Counts down from the habit's target
-// minutes; focused minutes are written into the day's progress on save.
-export function Timer({
-  habitId,
-  onClose,
-}: {
-  habitId: string;
-  onClose: () => void;
-}) {
+function liveElapsed(s: TimerSession): number {
+  return s.baseElapsed + (s.running && s.anchorMs ? Math.floor((Date.now() - s.anchorMs) / 1000) : 0);
+}
+
+export function Timer({ habitId, onClose }: { habitId: string; onClose: () => void }) {
   const { state, dispatch } = useStore();
-  const date = state.selectedDate;
   const habit = state.habits.find((h) => h.id === habitId);
-  const targetMin = habit ? targetFor(habit) : 25;
-  const alreadyMin = habit ? valueOn(state.entries, habit.id, date) : 0;
+  const date = state.selectedDate;
+  const [muted, setMutedState] = useState(isMuted());
 
-  const [total, setTotal] = useState(targetMin * 60); // planned seconds
-  const [elapsed, setElapsed] = useState(0); // seconds counted up this session
-  const [running, setRunning] = useState(false);
-  const notifiedRef = useRef(false);
-
-  // tick — counts up and keeps going past the goal into "overtime"
+  // Resume an existing session for this habit, or start a fresh paused one.
   useEffect(() => {
-    if (!running) return;
-    const id = setInterval(() => {
-      setElapsed((e) => {
-        const next = e + 1;
-        if (!notifiedRef.current && next >= total) {
-          notifiedRef.current = true;
-          notifySuccess();
-        }
-        return next;
-      });
-    }, 1000);
-    return () => clearInterval(id);
-  }, [running, total]);
+    if (!habit) return;
+    const cur = state.timer;
+    if (cur && cur.habitId === habitId) return;
+    const pomodoro = !!habit.pomodoroOn;
+    const workSec = pomodoro ? Math.max(1, habit.workMin ?? 25) * 60 : targetFor(habit) * 60;
+    const breakSec = pomodoro ? Math.max(1, habit.breakMin ?? 5) * 60 : 0;
+    dispatch({
+      type: "set_timer",
+      timer: { habitId, date, pomodoro, workSec, breakSec, phase: "work", running: false, anchorMs: null, baseElapsed: 0 },
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
-  const commitAndClose = () => {
-    const addMin = Math.round(elapsed / 60);
-    if (addMin > 0 && habit) {
-      dispatch({ type: "set_habit_value", id: habit.id, date, value: alreadyMin + addMin });
-    }
-    onClose();
+  const session = state.timer && state.timer.habitId === habitId ? state.timer : null;
+
+  // 4 Hz re-render so the dial + countdown stay live.
+  const [, force] = useState(0);
+  useEffect(() => {
+    const id = setInterval(() => force((x) => x + 1), 250);
+    return () => clearInterval(id);
+  }, []);
+
+  const phaseTotal = session ? (session.phase === "work" ? session.workSec : session.breakSec) : 0;
+  const elapsed = session ? liveElapsed(session) : 0;
+  const remaining = phaseTotal - elapsed;
+
+  const bankMinutes = (min: number) => {
+    if (!habit || min <= 0) return;
+    const cur = valueOn(state.entries, habit.id, date);
+    dispatch({ type: "set_habit_value", id: habit.id, date, value: cur + Math.round(min) });
   };
 
-  // Telegram chrome
+  // second-tick sound while running
+  const lastSecRef = useRef(-1);
+  useEffect(() => {
+    if (!session || !session.running) {
+      lastSecRef.current = -1;
+      return;
+    }
+    if (lastSecRef.current !== elapsed) {
+      const prev = lastSecRef.current;
+      lastSecRef.current = elapsed;
+      if (prev >= 0 && elapsed > 0) playTick();
+    }
+  });
+
+  // phase completion: pomodoro auto-advances; non-pomodoro chimes once into overtime
+  const handledRef = useRef(false);
+  useEffect(() => {
+    if (!session || !session.running) return;
+    if (remaining > 0) {
+      handledRef.current = false;
+      return;
+    }
+    if (handledRef.current) return;
+    handledRef.current = true;
+    playChime();
+    notifySuccess();
+    if (session.pomodoro) {
+      if (session.phase === "work") {
+        bankMinutes(session.workSec / 60);
+        dispatch({ type: "set_timer", timer: { ...session, phase: "break", baseElapsed: 0, anchorMs: Date.now() } });
+      } else {
+        dispatch({ type: "set_timer", timer: { ...session, phase: "work", baseElapsed: 0, anchorMs: Date.now() } });
+      }
+    }
+  });
+
+  // commit + close (also wired to Telegram MainButton/BackButton)
+  const commitAndClose = () => {
+    if (session && session.phase === "work") {
+      bankMinutes(Math.floor(liveElapsed(session) / 60));
+    }
+    dispatch({ type: "set_timer", timer: null });
+    onClose();
+  };
   const saveRef = useRef(commitAndClose);
   saveRef.current = commitAndClose;
   useEffect(() => {
@@ -83,48 +131,82 @@ export function Timer({
     onClose();
     return null;
   }
+  if (!session) return <div className="app" />;
 
-  const remaining = total - elapsed; // <= 0 means overtime
-  const overtime = remaining <= 0;
-  const progress = total > 0 ? Math.min(1, elapsed / total) : 0;
+  const targetMin = targetFor(habit);
+  const doneMin = valueOn(state.entries, habit.id, date) + (session.phase === "work" ? Math.floor(elapsed / 60) : 0);
+  const isBreak = session.phase === "break";
+  const overtime = !session.pomodoro && remaining <= 0;
+  const progress = phaseTotal > 0 ? Math.min(1, elapsed / phaseTotal) : 0;
+  const ringColor = isBreak ? BREAK_COLOR : overtime ? BREAK_COLOR : ACCENT;
   const r = 130;
   const c = 2 * Math.PI * r;
-  const focusedMin = Math.round(elapsed / 60);
+
+  const toggle = () => {
+    resumeAudio();
+    haptic("medium");
+    if (session.running) {
+      dispatch({ type: "set_timer", timer: { ...session, running: false, baseElapsed: elapsed, anchorMs: null } });
+    } else {
+      dispatch({ type: "set_timer", timer: { ...session, running: true, anchorMs: Date.now() } });
+    }
+  };
+  const reset = () => {
+    haptic("light");
+    handledRef.current = false;
+    dispatch({ type: "set_timer", timer: { ...session, baseElapsed: 0, anchorMs: session.running ? Date.now() : null } });
+  };
+  const skipBreak = () => {
+    haptic("light");
+    handledRef.current = false;
+    dispatch({ type: "set_timer", timer: { ...session, phase: "work", baseElapsed: 0, anchorMs: session.running ? Date.now() : null } });
+  };
+  const addFive = () => {
+    haptic("light");
+    dispatch({ type: "set_timer", timer: { ...session, workSec: session.workSec + 300 } });
+  };
+
+  const centerText = overtime ? `+${fmt(-remaining)}` : fmt(Math.max(0, remaining));
+  const phaseLabel = isBreak
+    ? session.running ? "перерыв" : "перерыв · пауза"
+    : overtime ? "сверх плана" : session.running ? "идёт фокус" : "на паузе";
 
   return (
     <div className="app">
       <div className="screen noscroll" style={{ display: "flex", flexDirection: "column", padding: "14px 16px 40px" }}>
         <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 8 }}>
-          <button
-            onClick={commitAndClose}
-            style={{
-              width: 36,
-              height: 36,
-              border: "none",
-              borderRadius: 12,
-              background: "var(--card2)",
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
-              cursor: "pointer",
-              color: "var(--text)",
-            }}
-          >
+          <button onClick={commitAndClose} style={iconBtn}>
             <ChevronLeft size={18} />
           </button>
-          <div style={{ fontSize: 19, fontWeight: 900, color: "var(--text)" }}>Таймер</div>
+          <div style={{ fontSize: 19, fontWeight: 900, color: "var(--text)", flex: 1 }}>Таймер</div>
+          <button
+            onClick={() => {
+              const m = !muted;
+              setMuted(m);
+              setMutedState(m);
+              haptic("light");
+            }}
+            style={iconBtn}
+            title={muted ? "Включить звук" : "Выключить звук"}
+          >
+            {muted ? <VolumeOff size={18} /> : <Volume size={18} />}
+          </button>
         </div>
 
-        <div style={{ textAlign: "center", marginTop: 14, marginBottom: 4 }}>
+        <div style={{ textAlign: "center", marginTop: 10, marginBottom: 4 }}>
           <div style={{ fontSize: 22, fontWeight: 900, color: "var(--text)" }}>{habit.name}</div>
           <div style={{ fontSize: 13, fontWeight: 700, color: "var(--hint)", marginTop: 4 }}>
-            Цель {formatMinutes(targetMin)} · сегодня {formatMinutes(alreadyMin + focusedMin)} /{" "}
-            {formatMinutes(targetMin)}
+            {session.pomodoro
+              ? `Помодоро · работа ${Math.round(session.workSec / 60)} / перерыв ${Math.round(session.breakSec / 60)} мин`
+              : `Цель ${formatMinutes(targetMin)}`}
+          </div>
+          <div style={{ fontSize: 13, fontWeight: 800, color: "var(--hint)", marginTop: 2 }}>
+            сегодня {formatMinutes(doneMin)} / {formatMinutes(targetMin)}
           </div>
         </div>
 
         {/* dial */}
-        <div style={{ display: "flex", justifyContent: "center", margin: "30px 0 36px" }}>
+        <div style={{ display: "flex", justifyContent: "center", margin: "26px 0 32px" }}>
           <div style={{ position: "relative", width: 300, height: 300 }}>
             <svg width="300" height="300" viewBox="0 0 300 300">
               <circle cx="150" cy="150" r={r} fill="none" stroke="var(--card2)" strokeWidth="14" />
@@ -133,33 +215,21 @@ export function Timer({
                 cy="150"
                 r={r}
                 fill="none"
-                stroke={overtime ? "#58B978" : ACCENT}
+                stroke={ringColor}
                 strokeWidth="14"
                 strokeLinecap="round"
                 strokeDasharray={c}
                 strokeDashoffset={c * (1 - progress)}
                 transform="rotate(-90 150 150)"
-                style={{ transition: "stroke-dashoffset .9s linear, stroke .3s" }}
+                style={{ transition: "stroke-dashoffset .35s linear, stroke .3s" }}
               />
             </svg>
-            <div
-              style={{
-                position: "absolute",
-                inset: 0,
-                display: "flex",
-                flexDirection: "column",
-                alignItems: "center",
-                justifyContent: "center",
-              }}
-            >
-              <div
-                className="bignum"
-                style={{ fontSize: 56, fontWeight: 900, color: overtime ? "#3F9B5E" : "var(--text)" }}
-              >
-                {overtime ? `+${fmt(-remaining)}` : fmt(remaining)}
+            <div style={{ position: "absolute", inset: 0, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center" }}>
+              <div className="bignum" style={{ fontSize: 54, fontWeight: 900, color: isBreak || overtime ? BREAK_COLOR : "var(--text)" }}>
+                {centerText}
               </div>
-              <div style={{ fontSize: 14, fontWeight: 800, color: overtime ? "#3F9B5E" : "var(--hint)", marginTop: 2 }}>
-                {overtime ? "сверх плана" : running ? "идёт фокус" : "на паузе"}
+              <div style={{ fontSize: 14, fontWeight: 800, color: isBreak || overtime ? BREAK_COLOR : "var(--hint)", marginTop: 2 }}>
+                {phaseLabel}
               </div>
             </div>
           </div>
@@ -167,37 +237,24 @@ export function Timer({
 
         {/* controls */}
         <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 20 }}>
-          <button
-            onClick={() => {
-              haptic("light");
-              setRunning(false);
-              setElapsed(0);
-              notifiedRef.current = false;
-            }}
-            style={roundBtn(false)}
-            title="Сбросить"
-          >
-            ↺
+          <button onClick={reset} style={roundBtn(false)} title="Сбросить">
+            <RotateCcw size={22} />
           </button>
-          <button
-            onClick={() => {
-              haptic("medium");
-              setRunning((v) => !v);
-            }}
-            style={{ ...roundBtn(true), width: 80, height: 80 }}
-          >
-            {running ? "⏸" : "▶"}
+          <button onClick={toggle} style={{ ...roundBtn(true), width: 80, height: 80 }}>
+            {session.running ? <Pause size={30} color="#fff" /> : <Play size={28} color="#fff" />}
           </button>
-          <button
-            onClick={() => {
-              haptic("light");
-              setTotal((t) => t + 300);
-            }}
-            style={{ ...roundBtn(false), fontSize: 13, fontWeight: 800 }}
-            title="Продлить план на 5 минут"
-          >
-            +5м
-          </button>
+          {isBreak ? (
+            <button onClick={skipBreak} style={{ ...roundBtn(false), fontSize: 10, fontWeight: 800, flexDirection: "column", gap: 2 }} title="Пропустить перерыв">
+              <SkipForward size={18} />
+              работа
+            </button>
+          ) : session.pomodoro ? (
+            <div style={{ width: 56 }} />
+          ) : (
+            <button onClick={addFive} style={{ ...roundBtn(false), fontSize: 13, fontWeight: 800 }} title="Продлить на 5 минут">
+              +5м
+            </button>
+          )}
         </div>
 
         {!hasTelegram && (
@@ -224,6 +281,19 @@ export function Timer({
     </div>
   );
 }
+
+const iconBtn: React.CSSProperties = {
+  width: 36,
+  height: 36,
+  border: "none",
+  borderRadius: 12,
+  background: "var(--card2)",
+  display: "flex",
+  alignItems: "center",
+  justifyContent: "center",
+  cursor: "pointer",
+  color: "var(--text)",
+};
 
 function roundBtn(primary: boolean): React.CSSProperties {
   return {

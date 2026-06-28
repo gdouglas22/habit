@@ -26,6 +26,24 @@ export interface Habit {
   days: number[]; // 0..6 (пн..вс)
   reminderOn: boolean;
   reminderTime?: string; // "HH:MM"
+  // Pomodoro (only for type "time"): work/break intervals in minutes
+  pomodoroOn?: boolean;
+  workMin?: number;
+  breakMin?: number;
+}
+
+// A persisted, resumable timer session. anchorMs (wall clock) + baseElapsed let
+// the timer continue correctly after the Mini App is closed and reopened.
+export interface TimerSession {
+  habitId: string;
+  date: string; // ISO day the focused time is credited to
+  pomodoro: boolean;
+  workSec: number; // work phase length (non-pomodoro: the daily goal)
+  breakSec: number;
+  phase: "work" | "break";
+  running: boolean;
+  anchorMs: number | null; // Date.now() when started; null while paused
+  baseElapsed: number; // seconds elapsed in the current phase as of last pause
 }
 
 // habitId -> ISO date -> value (check: 0/1, count/time: amount done that day)

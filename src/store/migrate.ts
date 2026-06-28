@@ -27,6 +27,7 @@ export function migrate(raw: unknown): AppState {
     entries: obj(r.entries),
     profile: obj(r.profile),
     apiKey: typeof r.apiKey === "string" ? r.apiKey : undefined,
+    timer: r.timer && typeof r.timer === "object" ? (r.timer as AppState["timer"]) : null,
     selectedDate: todayISO(),
     schemaVersion: SCHEMA,
   } as AppState;

@@ -261,7 +261,17 @@ export function HabitEditor({
 
           {/* target — duration picker for time, stepper+units for count */}
           {draft.type === "time" && (
-            <DurationField target={draft.target ?? 25} onChange={(t) => set({ target: t })} />
+            <>
+              <DurationField target={draft.target ?? 25} onChange={(t) => set({ target: t })} />
+              <PomodoroField
+                on={!!draft.pomodoroOn}
+                workMin={draft.workMin ?? 25}
+                breakMin={draft.breakMin ?? 5}
+                onToggle={(v) => set({ pomodoroOn: v, workMin: draft.workMin ?? 25, breakMin: draft.breakMin ?? 5 })}
+                onWork={(v) => set({ workMin: v })}
+                onBreak={(v) => set({ breakMin: v })}
+              />
+            </>
           )}
           {draft.type === "count" && (
             <>
@@ -596,5 +606,94 @@ function DurationStepper({
         </button>
       </div>
     </div>
+  );
+}
+
+// Pomodoro toggle + work/break interval steppers for "time" habits.
+function PomodoroField({
+  on,
+  workMin,
+  breakMin,
+  onToggle,
+  onWork,
+  onBreak,
+}: {
+  on: boolean;
+  workMin: number;
+  breakMin: number;
+  onToggle: (v: boolean) => void;
+  onWork: (v: number) => void;
+  onBreak: (v: number) => void;
+}) {
+  return (
+    <>
+      <div
+        style={{
+          display: "flex",
+          alignItems: "center",
+          gap: 12,
+          background: "var(--card)",
+          borderRadius: 16,
+          padding: "14px 16px",
+          marginBottom: on ? 12 : 22,
+          boxShadow: "0 1px 2px rgba(60,40,30,.05)",
+        }}
+      >
+        <div style={{ flex: 1 }}>
+          <div style={{ fontSize: 15, fontWeight: 800, color: "var(--text)" }}>Помодоро</div>
+          <div style={{ fontSize: 12, fontWeight: 700, color: "var(--hint)", marginTop: 2 }}>
+            Циклы работы и перерыва в таймере
+          </div>
+        </div>
+        <div
+          onClick={() => {
+            haptic("light");
+            onToggle(!on);
+          }}
+          style={{
+            width: 46,
+            height: 28,
+            borderRadius: 999,
+            background: on ? ACCENT : "var(--line)",
+            position: "relative",
+            cursor: "pointer",
+            transition: "background .2s",
+          }}
+        >
+          <div
+            style={{
+              position: "absolute",
+              top: 3,
+              left: on ? 21 : 3,
+              width: 22,
+              height: 22,
+              borderRadius: 999,
+              background: "#fff",
+              boxShadow: "0 1px 3px rgba(0,0,0,.2)",
+              transition: "left .2s",
+            }}
+          />
+        </div>
+      </div>
+
+      {on && (
+        <div style={{ display: "flex", gap: 10, marginBottom: 22 }}>
+          <DurationStepper
+            caption="работа, мин"
+            value={workMin}
+            disableMinus={workMin <= 1}
+            onMinus={() => onWork(Math.max(1, workMin - 5))}
+            onPlus={() => onWork(workMin + 5)}
+          />
+          <DurationStepper
+            caption="перерыв, мин"
+            value={breakMin}
+            disableMinus={breakMin <= 1}
+            onMinus={() => onBreak(Math.max(1, breakMin - 1))}
+            onPlus={() => onBreak(breakMin + 1)}
+          />
+        </div>
+      )}
+    </>
   );
 }
