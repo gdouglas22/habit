@@ -45,7 +45,7 @@ export function ActivityTypeEditor({
         setErr("ИИ не смог оценить активность. Заполни вручную.");
         return;
       }
-      set({ unit: r.unit, kcalPerUnit: Math.round(r.kcalPerUnit * 10) / 10 });
+      set({ unit: r.unit, kcalPerUnit: r.kcalPerUnit });
       setSource("Источник: ИИ (оценка)");
       notifySuccess();
     } catch (e) {
