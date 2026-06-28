@@ -3,7 +3,8 @@ import { ACCENT } from "../theme";
 import { useStore, newId } from "../store/store";
 import { ACTIVITY_UNITS, ACTIVITY_EMOJIS, type ActivityType } from "../data";
 import { haptic, notifySuccess } from "../telegram";
-import { lookupActivity, isPlausibleActivity } from "../ai";
+import { lookupActivity, isPlausibleActivity, roundKcalPerUnit } from "../ai";
+import { fmtNum, exampleAmount } from "../num";
 import { EditorShell, fieldLabel, stepBtn } from "../components/EditorShell";
 import { Sparkles } from "../icons";
 
@@ -214,8 +215,8 @@ export function ActivityTypeEditor({
 
       {/* kcal per unit */}
       <div style={fieldLabel}>Расход — ккал за 1 {a.unit}</div>
-      <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 22 }}>
-        <button onClick={() => set({ kcalPerUnit: Math.max(0, Math.round((a.kcalPerUnit - 1) * 10) / 10) })} style={stepBtn}>
+      <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 8 }}>
+        <button onClick={() => set({ kcalPerUnit: Math.max(0, roundKcalPerUnit(a.kcalPerUnit - 1)) })} style={stepBtn}>
           −
         </button>
         <input
@@ -236,10 +237,16 @@ export function ActivityTypeEditor({
             minWidth: 0,
           }}
         />
-        <button onClick={() => set({ kcalPerUnit: Math.round((a.kcalPerUnit + 1) * 10) / 10 })} style={stepBtn}>
+        <button onClick={() => set({ kcalPerUnit: roundKcalPerUnit(a.kcalPerUnit + 1) })} style={stepBtn}>
           +
         </button>
       </div>
+      {a.kcalPerUnit > 0 && (
+        <div style={{ fontSize: 12, fontWeight: 700, color: "var(--hint)", marginBottom: 22, lineHeight: 1.4 }}>
+          {fmtNum(a.kcalPerUnit)} ккал за 1 {a.unit} · {exampleAmount(a.unit)} {a.unit} ≈{" "}
+          {Math.round(a.kcalPerUnit * exampleAmount(a.unit))} ккал
+        </div>
+      )}
     </EditorShell>
   );
 }

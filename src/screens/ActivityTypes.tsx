@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import { useStore } from "../store/store";
 import { haptic, showBackButton, hideBackButton } from "../telegram";
+import { fmtNum } from "../num";
 import { ChevronLeft, Plus, Trash } from "../icons";
 
 export function ActivityTypes({
@@ -96,7 +97,7 @@ export function ActivityTypes({
               <div style={{ flex: 1, minWidth: 0 }}>
                 <div style={{ fontWeight: 800, fontSize: 16, color: "var(--text)" }}>{a.name}</div>
                 <div style={{ fontWeight: 700, fontSize: 13, color: "var(--hint)", marginTop: 2 }}>
-                  {a.kcalPerUnit} ккал / {a.unit}
+                  {fmtNum(a.kcalPerUnit)} ккал / {a.unit}
                 </div>
               </div>
               <div

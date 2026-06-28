@@ -3,6 +3,7 @@ import { useStore, newId } from "../store/store";
 import type { ActivityRow } from "../data";
 import { activityTypeById } from "../store/selectors";
 import { haptic, notifySuccess } from "../telegram";
+import { fmtNum } from "../num";
 import { EditorShell, fieldLabel, stepBtn } from "../components/EditorShell";
 import { Plus } from "../icons";
 
@@ -103,7 +104,7 @@ export function ActivityEditor({
                 <div style={{ flex: 1, minWidth: 0 }}>
                   <div style={{ fontWeight: 800, fontSize: 15, color: "var(--text)" }}>{t.name}</div>
                   <div style={{ fontSize: 11, fontWeight: 700, color: "var(--hint)" }}>
-                    {t.kcalPerUnit} ккал / {t.unit}
+                    {fmtNum(t.kcalPerUnit)} ккал / {t.unit}
                   </div>
                 </div>
               </div>
@@ -230,9 +231,14 @@ export function ActivityEditor({
             >
               🔥
             </div>
-            <div className="bignum" style={{ fontSize: 26, fontWeight: 900, color: "var(--text)" }}>
-              {kcal}
-              <span style={{ fontSize: 14, fontWeight: 800, color: "var(--hint)" }}> ккал</span>
+            <div style={{ flex: 1, minWidth: 0 }}>
+              <div className="bignum" style={{ fontSize: 26, fontWeight: 900, color: "var(--text)" }}>
+                {kcal}
+                <span style={{ fontSize: 14, fontWeight: 800, color: "var(--hint)" }}> ккал</span>
+              </div>
+              <div style={{ fontSize: 12, fontWeight: 700, color: "var(--hint)", marginTop: 2 }}>
+                {fmtNum(type.kcalPerUnit)} ккал × {row.value} {type.unit}
+              </div>
             </div>
           </div>
 
