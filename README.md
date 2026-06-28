@@ -71,8 +71,9 @@ npm start          # express отдаёт dist/ на :3000 (или $PORT)
   3. **Ошибка** — если ИИ вернул мусор (всё по нулям/абсурд,
      `isPlausibleNutrition`), показывается сообщение «заполни вручную».
 
-Для `npm run dev` запусти рядом `node server.js` — Vite проксирует `/api` на
-него (см. `vite.config.ts`).
+Логика поиска вынесена в `server/nutrition.js` и подключается и в Express
+(прод), и как middleware в dev-сервер Vite (`vite.config.ts`) — поэтому
+`npm run dev` работает сам по себе, без отдельного `node server.js`.
 
 > ⚠️ Запрос к Anthropic пока идёт напрямую из браузера
 > (`anthropic-dangerous-direct-browser-access`) — ключ виден в клиенте. Для
