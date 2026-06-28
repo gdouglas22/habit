@@ -4,6 +4,9 @@
   "private": true,
   "type": "module",
   "description": "Трекер привычек — Telegram Mini App (дизайн-болванка)",
+  "engines": {
+    "node": ">=20"
+  },
   "scripts": {
     "dev": "vite",
     "build": "tsc && vite build",
