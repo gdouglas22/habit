@@ -9,7 +9,7 @@ import type {
   Product,
   Micros,
 } from "../data";
-import { MICRONUTRIENTS, emptyMicros } from "../data";
+import { MICRONUTRIENTS, emptyMicros, REFERENCE_WEIGHT } from "../data";
 import { addDays, weekdayMon0, formatMinutes } from "../date";
 
 export function activitiesOn(rows: ActivityRow[], date: string): ActivityRow[] {
@@ -20,9 +20,13 @@ export function activityTypeById(types: ActivityType[], id: string): ActivityTyp
   return types.find((t) => t.id === id);
 }
 
-export function activityKcal(row: ActivityRow, types: ActivityType[]): number {
+// kcalPerUnit estimates assume REFERENCE_WEIGHT; scale by the user's weight
+// when known so heavier/lighter users get a closer number.
+export function activityKcal(row: ActivityRow, types: ActivityType[], weightKg?: number): number {
   const t = activityTypeById(types, row.activityId);
-  return t ? Math.round(t.kcalPerUnit * row.value) : 0;
+  if (!t) return 0;
+  const factor = weightKg && weightKg > 0 ? weightKg / REFERENCE_WEIGHT : 1;
+  return Math.round(t.kcalPerUnit * row.value * factor);
 }
 
 export function foodsOn(rows: FoodEntry[], date: string): FoodEntry[] {

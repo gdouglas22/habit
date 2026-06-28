@@ -18,6 +18,7 @@ import {
   type Product,
   type FoodEntry,
   type EntryLog,
+  type Profile,
 } from "../data";
 import { todayISO } from "../date";
 import { nextTapValue, valueOn } from "./selectors";
@@ -32,6 +33,7 @@ export interface AppState {
   entries: EntryLog;
   selectedDate: string; // ISO; the "current" calendar day in the UI
   apiKey?: string; // Anthropic key for AI lookup
+  profile: Profile; // user data (age, weight, height, sex, …)
 }
 
 const initialState: AppState = {
@@ -42,6 +44,7 @@ const initialState: AppState = {
   foods: FOODS,
   entries: ENTRIES,
   selectedDate: todayISO(),
+  profile: {},
 };
 
 export type Action =
@@ -63,7 +66,8 @@ export type Action =
   | { type: "add_product"; product: Product }
   | { type: "update_product"; product: Product }
   | { type: "delete_product"; id: string }
-  | { type: "set_api_key"; apiKey: string };
+  | { type: "set_api_key"; apiKey: string }
+  | { type: "update_profile"; patch: Partial<Profile> };
 
 function setEntry(entries: EntryLog, id: string, date: string, value: number): EntryLog {
   const forHabit = { ...(entries[id] ?? {}) };
@@ -142,6 +146,8 @@ function reducer(state: AppState, action: Action): AppState {
       return { ...state, products: state.products.filter((p) => p.id !== action.id) };
     case "set_api_key":
       return { ...state, apiKey: action.apiKey };
+    case "update_profile":
+      return { ...state, profile: { ...state.profile, ...action.patch } };
     default:
       return state;
   }

@@ -17,8 +17,8 @@ export function Activity({
   const { state, dispatch } = useStore();
   const date = state.selectedDate;
   const rows = activitiesOn(state.activities, date);
-  const total = rows.reduce((s, a) => s + activityKcal(a, state.activityTypes), 0);
-  const maxKcal = Math.max(1, ...rows.map((a) => activityKcal(a, state.activityTypes)));
+  const total = rows.reduce((s, a) => s + activityKcal(a, state.activityTypes, state.profile.weight), 0);
+  const maxKcal = Math.max(1, ...rows.map((a) => activityKcal(a, state.activityTypes, state.profile.weight)));
 
   return (
     <div className="screen-pad">
@@ -79,7 +79,7 @@ export function Activity({
           </div>
           <div style={{ display: "flex", height: 10, borderRadius: 999, overflow: "hidden", background: "var(--card2)", gap: 2 }}>
             {rows.map((a) => {
-              const k = activityKcal(a, state.activityTypes);
+              const k = activityKcal(a, state.activityTypes, state.profile.weight);
               return (
                 <div
                   key={a.id}
@@ -99,7 +99,7 @@ export function Activity({
       <div style={{ display: "flex", flexDirection: "column", gap: 10, marginBottom: 16 }}>
         {rows.map((a) => {
           const t = activityTypeById(state.activityTypes, a.activityId);
-          const k = activityKcal(a, state.activityTypes);
+          const k = activityKcal(a, state.activityTypes, state.profile.weight);
           return (
             <div
               key={a.id}

@@ -53,6 +53,54 @@ export interface ActivityRow {
 export const ACTIVITY_UNITS = ["мин", "км", "повтор", "подход", "шаг"];
 export const ACTIVITY_EMOJIS = ["🏃", "🚴", "🧘", "🏊", "🚶", "💪", "⚽", "🏋️", "🤸", "⛹️", "🥊", "🧗"];
 
+// Reference weight the AI/manual kcalPerUnit estimates assume.
+export const REFERENCE_WEIGHT = 70;
+
+export type Sex = "male" | "female";
+export type ActivityLevel = "sedentary" | "light" | "moderate" | "active" | "veryActive";
+export type Goal = "lose" | "maintain" | "gain";
+
+export interface Profile {
+  name?: string;
+  sex?: Sex;
+  age?: number; // years
+  weight?: number; // kg
+  height?: number; // cm
+  activityLevel?: ActivityLevel;
+  goal?: Goal;
+}
+
+export const ACTIVITY_LEVELS: { key: ActivityLevel; label: string; factor: number }[] = [
+  { key: "sedentary", label: "Малоподвижный", factor: 1.2 },
+  { key: "light", label: "Лёгкая активность", factor: 1.375 },
+  { key: "moderate", label: "Умеренная", factor: 1.55 },
+  { key: "active", label: "Высокая", factor: 1.725 },
+  { key: "veryActive", label: "Очень высокая", factor: 1.9 },
+];
+
+export const GOALS: { key: Goal; label: string; delta: number }[] = [
+  { key: "lose", label: "Похудение", delta: -0.15 },
+  { key: "maintain", label: "Поддержание", delta: 0 },
+  { key: "gain", label: "Набор", delta: 0.15 },
+];
+
+export interface Targets {
+  bmr: number; // базовый обмен
+  tdee: number; // суточный расход с учётом активности
+  target: number; // целевые калории с учётом цели
+}
+
+// Mifflin–St Jeor. Returns null until the required fields are filled.
+export function computeTargets(p: Profile): Targets | null {
+  if (!p.sex || !p.age || !p.weight || !p.height) return null;
+  const s = p.sex === "male" ? 5 : -161;
+  const bmr = 10 * p.weight + 6.25 * p.height - 5 * p.age + s;
+  const factor = ACTIVITY_LEVELS.find((a) => a.key === (p.activityLevel ?? "moderate"))?.factor ?? 1.55;
+  const tdee = bmr * factor;
+  const delta = GOALS.find((g) => g.key === (p.goal ?? "maintain"))?.delta ?? 0;
+  return { bmr: Math.round(bmr), tdee: Math.round(tdee), target: Math.round(tdee * (1 + delta)) };
+}
+
 // Micronutrient catalog — the fixed set every product carries. Values are
 // stored per 100 g; the app sums them up by grams eaten. Set chosen here.
 export const MICRONUTRIENTS = [

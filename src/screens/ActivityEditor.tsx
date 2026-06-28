@@ -24,7 +24,9 @@ export function ActivityEditor({
   const set = (patch: Partial<ActivityRow>) => setRow((r) => ({ ...r, ...patch }));
 
   const type = activityTypeById(state.activityTypes, row.activityId);
-  const kcal = type ? Math.round(type.kcalPerUnit * row.value) : 0;
+  const w = state.profile.weight;
+  const factor = w && w > 0 ? w / 70 : 1;
+  const kcal = type ? Math.round(type.kcalPerUnit * row.value * factor) : 0;
 
   const save = () => {
     if (!row.activityId) {
