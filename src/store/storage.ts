@@ -1,29 +1,45 @@
-// Persistence abstraction. Today it's synchronous localStorage; later this can
-// gain a Telegram CloudStorage / backend tier without touching the store.
+// Local persistence (offline cache + source of truth when not in Telegram).
+// A single STABLE key — schema changes are handled by migrate(), not by
+// bumping the key, so user data is never discarded on an update.
 
-// Bump the version to invalidate older persisted state (e.g. demo seed data,
-// or the old flat food-row shape replaced by products + meal entries).
-const KEY = "habit-tracker-state-v4";
+const KEY = "habit-tracker-state";
+// Older versioned keys, imported once into the stable key so existing data
+// survives the move to migrations.
+const LEGACY_KEYS = [
+  "habit-tracker-state-v4",
+  "habit-tracker-state-v3",
+  "habit-tracker-state-v2",
+  "habit-tracker-state-v1",
+];
 
-export function loadState<T>(fallback: T): T {
+// Returns the raw parsed blob (any shape) — migrate() makes it current.
+export function loadRaw(): unknown {
   try {
-    const raw = localStorage.getItem(KEY);
-    if (!raw) return fallback;
-    return { ...fallback, ...(JSON.parse(raw) as Partial<T>) };
+    let raw = localStorage.getItem(KEY);
+    if (!raw) {
+      for (const k of LEGACY_KEYS) {
+        const v = localStorage.getItem(k);
+        if (v) {
+          raw = v;
+          break;
+        }
+      }
+    }
+    return raw ? JSON.parse(raw) : null;
   } catch {
-    return fallback;
+    return null;
   }
 }
 
-export function saveState<T>(state: T): void {
+export function saveRaw(state: unknown): void {
   try {
     localStorage.setItem(KEY, JSON.stringify(state));
   } catch {
-    /* private mode / quota — ignore, state stays in-memory */
+    /* private mode / quota — ignore */
   }
 }
 
-export function resetState(): void {
+export function resetLocal(): void {
   try {
     localStorage.removeItem(KEY);
   } catch {

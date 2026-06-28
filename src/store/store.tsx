@@ -22,7 +22,9 @@ import {
 } from "../data";
 import { todayISO } from "../date";
 import { nextTapValue, valueOn } from "./selectors";
-import { loadState, saveState } from "./storage";
+import { loadRaw, saveRaw } from "./storage";
+import { migrate } from "./migrate";
+import { canSync, fetchRemote, pushRemote } from "./sync";
 
 export interface AppState {
   habits: Habit[];
@@ -32,8 +34,9 @@ export interface AppState {
   foods: FoodEntry[]; // diary meals
   entries: EntryLog;
   selectedDate: string; // ISO; the "current" calendar day in the UI
-  apiKey?: string; // Anthropic key for AI lookup
+  apiKey?: string; // Anthropic key for AI lookup (device-local, not synced)
   profile: Profile; // user data (age, weight, height, sex, …)
+  schemaVersion?: number; // migration marker
 }
 
 const initialState: AppState = {
@@ -67,7 +70,8 @@ export type Action =
   | { type: "update_product"; product: Product }
   | { type: "delete_product"; id: string }
   | { type: "set_api_key"; apiKey: string }
-  | { type: "update_profile"; patch: Partial<Profile> };
+  | { type: "update_profile"; patch: Partial<Profile> }
+  | { type: "hydrate"; state: AppState };
 
 function setEntry(entries: EntryLog, id: string, date: string, value: number): EntryLog {
   const forHabit = { ...(entries[id] ?? {}) };
@@ -148,6 +152,9 @@ function reducer(state: AppState, action: Action): AppState {
       return { ...state, apiKey: action.apiKey };
     case "update_profile":
       return { ...state, profile: { ...state.profile, ...action.patch } };
+    case "hydrate":
+      // replace with remote data, but keep device-local apiKey + current day
+      return { ...action.state, apiKey: state.apiKey, selectedDate: state.selectedDate };
     default:
       return state;
   }
@@ -161,13 +168,31 @@ interface Store {
 const Ctx = createContext<Store | null>(null);
 
 export function StoreProvider({ children }: { children: ReactNode }) {
-  const [state, dispatch] = useReducer(reducer, initialState, (init) => ({
-    ...loadState(init),
-    selectedDate: todayISO(), // always open on the current day
-  }));
+  // Instant render from the local cache (migrated to the current shape).
+  const [state, dispatch] = useReducer(reducer, initialState, () => migrate(loadRaw()));
 
+  // On boot in Telegram: pull the server copy. If the server has data, it wins
+  // (cross-device source of truth). If it's empty, seed it from local.
   useEffect(() => {
-    saveState(state);
+    if (!canSync()) return;
+    let cancelled = false;
+    (async () => {
+      const remote = await fetchRemote();
+      if (cancelled) return;
+      if (remote) dispatch({ type: "hydrate", state: migrate(remote) });
+      else if (remote === null) pushRemote(migrate(loadRaw()));
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  // Persist locally immediately + push to the server (debounced) on change.
+  useEffect(() => {
+    saveRaw(state);
+    if (!canSync()) return;
+    const id = setTimeout(() => pushRemote(state), 800);
+    return () => clearTimeout(id);
   }, [state]);
 
   return <Ctx.Provider value={{ state, dispatch }}>{children}</Ctx.Provider>;
