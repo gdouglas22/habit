@@ -1,11 +1,12 @@
+import { useState } from "react";
 import { useStore } from "../store/store";
 import { foodsOn, dayNutrition, entryNutrition } from "../store/selectors";
-import { MICRONUTRIENTS } from "../data";
+import { MICRONUTRIENTS, dailyGoals } from "../data";
 import { haptic } from "../telegram";
 import { formatWeekdayFull, formatDayMonth } from "../date";
 import { Header } from "../components/Header";
 import { DaySelector } from "../components/DaySelector";
-import { Plus, Trash, Utensils } from "../icons";
+import { Plus, Trash, Utensils, ChevronDown } from "../icons";
 
 function fmt(n: number): string {
   const r = Math.round(n * 10) / 10;
@@ -23,6 +24,8 @@ export function Food({
   const date = state.selectedDate;
   const meals = foodsOn(state.foods, date);
   const day = dayNutrition(meals, state.products);
+  const goals = dailyGoals(state.profile);
+  const [showMicros, setShowMicros] = useState(false);
   const microsShown = MICRONUTRIENTS.filter((m) => (day.micros[m.key] ?? 0) > 0);
 
   return (
@@ -71,64 +74,98 @@ export function Food({
             <div>
               <div className="bignum" style={{ fontSize: 40, fontWeight: 900, color: "var(--text)", lineHeight: 1 }}>
                 {Math.round(day.kcal)}
+                {goals.kcal && (
+                  <span style={{ fontSize: 20, fontWeight: 800, color: "var(--hint)" }}> / {goals.kcal}</span>
+                )}
               </div>
-              <div style={{ fontSize: 13, fontWeight: 800, color: "var(--hint)", marginTop: 3 }}>
-                ккал съедено
-              </div>
+              <div style={{ fontSize: 13, fontWeight: 800, color: "var(--hint)", marginTop: 3 }}>ккал съедено</div>
             </div>
             <div style={{ textAlign: "right" }}>
               <div className="bignum" style={{ fontSize: 24, fontWeight: 900, color: "#4A90C2", lineHeight: 1 }}>
                 {Math.round(day.fluid)}
-                <span style={{ fontSize: 13, fontWeight: 800, color: "var(--hint)" }}> мл</span>
+                <span style={{ fontSize: 14, fontWeight: 800, color: "var(--hint)" }}> / {goals.fluid} мл</span>
               </div>
-              <div style={{ fontSize: 13, fontWeight: 800, color: "var(--hint)", marginTop: 3 }}>
-                жидкость
-              </div>
+              <div style={{ fontSize: 13, fontWeight: 800, color: "var(--hint)", marginTop: 3 }}>жидкость</div>
             </div>
           </div>
 
-          {/* macros */}
+          {/* macros: набрано / норма */}
           <div style={{ display: "flex", gap: 8, marginTop: 14 }}>
             {[
-              { l: "Белки", v: day.protein, c: "#58B978" },
-              { l: "Жиры", v: day.fat, c: "#F2994A" },
-              { l: "Углеводы", v: day.carbs, c: "#4A90C2" },
+              { l: "Белки", v: day.protein, goal: goals.protein, c: "#58B978" },
+              { l: "Жиры", v: day.fat, goal: goals.fat, c: "#F2994A" },
+              { l: "Углеводы", v: day.carbs, goal: goals.carbs, c: "#4A90C2" },
             ].map((m) => (
               <div key={m.l} style={{ flex: 1, background: "var(--card2)", borderRadius: 12, padding: "10px 12px" }}>
                 <div style={{ fontSize: 11, fontWeight: 800, color: "var(--hint)" }}>{m.l}</div>
-                <div style={{ fontSize: 18, fontWeight: 900, color: m.c, marginTop: 2 }}>{fmt(m.v)} г</div>
+                <div style={{ fontSize: 17, fontWeight: 900, color: m.c, marginTop: 2 }}>
+                  {fmt(m.v)}
+                  {m.goal != null && <span style={{ color: "var(--hint)", fontSize: 12 }}> / {m.goal}</span>}
+                  <span style={{ color: "var(--hint)", fontSize: 12, fontWeight: 800 }}> г</span>
+                </div>
               </div>
             ))}
           </div>
 
-          {/* vitamins / minerals — values only, no norms */}
+          {/* vitamins / minerals — collapsible, collapsed by default */}
           {microsShown.length > 0 && (
             <>
-              <div style={{ fontSize: 12, fontWeight: 800, color: "var(--hint)", margin: "16px 0 8px" }}>
-                Витамины и минералы за день
-              </div>
-              <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
-                {microsShown.map((m) => (
-                  <div
-                    key={m.key}
-                    style={{
-                      display: "inline-flex",
-                      alignItems: "baseline",
-                      gap: 4,
-                      background: "var(--card2)",
-                      borderRadius: 999,
-                      padding: "5px 10px",
-                      fontSize: 12,
-                      fontWeight: 800,
-                      color: "var(--text)",
-                    }}
-                  >
-                    {m.label}
-                    <span style={{ color: "var(--accent)" }}>{fmt(day.micros[m.key])}</span>
-                    <span style={{ color: "var(--hint)", fontWeight: 700 }}>{m.unit}</span>
-                  </div>
-                ))}
-              </div>
+              <button
+                onClick={() => {
+                  haptic("light");
+                  setShowMicros((v) => !v);
+                }}
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "space-between",
+                  width: "100%",
+                  border: "none",
+                  background: "transparent",
+                  cursor: "pointer",
+                  padding: 0,
+                  margin: "16px 0 0",
+                }}
+              >
+                <span style={{ fontSize: 12, fontWeight: 800, color: "var(--hint)" }}>
+                  Витамины и минералы · {microsShown.length}
+                </span>
+                <span
+                  style={{
+                    color: "var(--hint)",
+                    display: "flex",
+                    transform: showMicros ? "rotate(180deg)" : "none",
+                    transition: "transform .2s",
+                  }}
+                >
+                  <ChevronDown size={16} />
+                </span>
+              </button>
+              {showMicros && (
+                <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginTop: 10 }}>
+                  {microsShown.map((m) => (
+                    <div
+                      key={m.key}
+                      style={{
+                        display: "inline-flex",
+                        alignItems: "baseline",
+                        gap: 4,
+                        background: "var(--card2)",
+                        borderRadius: 999,
+                        padding: "5px 10px",
+                        fontSize: 12,
+                        fontWeight: 800,
+                        color: "var(--text)",
+                      }}
+                    >
+                      {m.label}
+                      <span style={{ color: "var(--accent)" }}>{fmt(day.micros[m.key])}</span>
+                      <span style={{ color: "var(--hint)", fontWeight: 700 }}>/ {m.rda}</span>
+                      <span style={{ color: "var(--hint)", fontWeight: 700 }}>{m.unit}</span>
+                    </div>
+                  ))}
+                </div>
+              )}
             </>
           )}
         </div>

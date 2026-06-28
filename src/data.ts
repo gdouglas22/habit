@@ -119,25 +119,49 @@ export function computeTargets(p: Profile): Targets | null {
   return { bmr: Math.round(bmr), tdee: Math.round(tdee), target: Math.round(tdee * (1 + delta)) };
 }
 
+export interface DailyGoals {
+  kcal?: number; // undefined until profile is complete
+  fluid: number; // ml
+  protein?: number;
+  fat?: number;
+  carbs?: number;
+}
+
+// Recommended daily calories / fluid / macros from the profile.
+export function dailyGoals(p: Profile): DailyGoals {
+  const kcal = computeTargets(p)?.target;
+  const fluid = p.weight ? Math.round(p.weight * 30) : 2000; // ~30 ml per kg
+  let protein: number | undefined;
+  let fat: number | undefined;
+  let carbs: number | undefined;
+  if (kcal) {
+    protein = p.weight ? Math.round(p.weight * 1.6) : Math.round((kcal * 0.25) / 4);
+    fat = Math.round((kcal * 0.275) / 9);
+    carbs = Math.round((kcal * 0.475) / 4);
+  }
+  return { kcal, fluid, protein, fat, carbs };
+}
+
 // Micronutrient catalog — the fixed set every product carries. Values are
 // stored per 100 g; the app sums them up by grams eaten. Set chosen here.
+// rda = recommended daily amount (adult average) — used as the "/ норма" target.
 export const MICRONUTRIENTS = [
-  { key: "fiber", label: "Клетчатка", unit: "г", group: "Прочее" },
-  { key: "vitaminA", label: "Витамин A", unit: "мкг", group: "Витамины" },
-  { key: "vitaminC", label: "Витамин C", unit: "мг", group: "Витамины" },
-  { key: "vitaminD", label: "Витамин D", unit: "мкг", group: "Витамины" },
-  { key: "vitaminE", label: "Витамин E", unit: "мг", group: "Витамины" },
-  { key: "vitaminK", label: "Витамин K", unit: "мкг", group: "Витамины" },
-  { key: "b1", label: "B1 (тиамин)", unit: "мг", group: "Витамины" },
-  { key: "b2", label: "B2 (рибофлавин)", unit: "мг", group: "Витамины" },
-  { key: "b6", label: "B6", unit: "мг", group: "Витамины" },
-  { key: "b9", label: "B9 (фолат)", unit: "мкг", group: "Витамины" },
-  { key: "b12", label: "B12", unit: "мкг", group: "Витамины" },
-  { key: "calcium", label: "Кальций", unit: "мг", group: "Минералы" },
-  { key: "iron", label: "Железо", unit: "мг", group: "Минералы" },
-  { key: "magnesium", label: "Магний", unit: "мг", group: "Минералы" },
-  { key: "potassium", label: "Калий", unit: "мг", group: "Минералы" },
-  { key: "zinc", label: "Цинк", unit: "мг", group: "Минералы" },
+  { key: "fiber", label: "Клетчатка", unit: "г", group: "Прочее", rda: 30 },
+  { key: "vitaminA", label: "Витамин A", unit: "мкг", group: "Витамины", rda: 900 },
+  { key: "vitaminC", label: "Витамин C", unit: "мг", group: "Витамины", rda: 90 },
+  { key: "vitaminD", label: "Витамин D", unit: "мкг", group: "Витамины", rda: 15 },
+  { key: "vitaminE", label: "Витамин E", unit: "мг", group: "Витамины", rda: 15 },
+  { key: "vitaminK", label: "Витамин K", unit: "мкг", group: "Витамины", rda: 120 },
+  { key: "b1", label: "B1 (тиамин)", unit: "мг", group: "Витамины", rda: 1.2 },
+  { key: "b2", label: "B2 (рибофлавин)", unit: "мг", group: "Витамины", rda: 1.3 },
+  { key: "b6", label: "B6", unit: "мг", group: "Витамины", rda: 1.3 },
+  { key: "b9", label: "B9 (фолат)", unit: "мкг", group: "Витамины", rda: 400 },
+  { key: "b12", label: "B12", unit: "мкг", group: "Витамины", rda: 2.4 },
+  { key: "calcium", label: "Кальций", unit: "мг", group: "Минералы", rda: 1000 },
+  { key: "iron", label: "Железо", unit: "мг", group: "Минералы", rda: 14 },
+  { key: "magnesium", label: "Магний", unit: "мг", group: "Минералы", rda: 400 },
+  { key: "potassium", label: "Калий", unit: "мг", group: "Минералы", rda: 3500 },
+  { key: "zinc", label: "Цинк", unit: "мг", group: "Минералы", rda: 11 },
 ] as const;
 
 export type MicroKey = (typeof MICRONUTRIENTS)[number]["key"];
