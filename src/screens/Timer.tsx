@@ -156,6 +156,7 @@ export function Timer({ habitId, onClose }: { habitId: string; onClose: () => vo
     if (session.running) {
       dispatch({ type: "set_timer", timer: { ...session, running: false, baseElapsed: elapsed, anchorMs: null } });
     } else {
+      playTick(); // immediate feedback + engages audio on iOS
       dispatch({ type: "set_timer", timer: { ...session, running: true, anchorMs: Date.now() } });
     }
   };
@@ -193,6 +194,10 @@ export function Timer({ habitId, onClose }: { habitId: string; onClose: () => vo
               setMuted(m);
               setMutedState(m);
               haptic("light");
+              if (!m) {
+                resumeAudio();
+                playTick(); // confirm sound works
+              }
             }}
             style={iconBtn}
             title={muted ? "Включить звук" : "Выключить звук"}
