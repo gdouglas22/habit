@@ -1,11 +1,10 @@
 import { useState } from "react";
-import { ACCENT } from "../theme";
 import { useStore, newId } from "../store/store";
 import { MICRONUTRIENTS, emptyMicros, type Product } from "../data";
 import { haptic, notifySuccess } from "../telegram";
 import { lookupNutrition, lookupFreeDb, isPlausibleNutrition, type NutritionResult } from "../ai";
 import { EditorShell, fieldLabel } from "../components/EditorShell";
-import { Sparkles } from "../icons";
+import { Sparkles, Database } from "../icons";
 
 const EMOJIS = ["🍎", "🍗", "🥦", "🍚", "🥛", "🥐", "🍫", "🥑", "🍔", "🍝", "🥚", "🐟"];
 
@@ -46,8 +45,8 @@ export function ProductEditor({
   const { state, dispatch } = useStore();
   const existing = productId ? state.products.find((p) => p.id === productId) : undefined;
   const [p, setP] = useState<Product>(existing ?? draft());
-  // phase: idle → searching DB → offerAI (DB miss) → aiLoading
-  const [phase, setPhase] = useState<"idle" | "searching" | "offerAI" | "aiLoading">("idle");
+  // Two independent lookups; busy tracks which one is running.
+  const [busy, setBusy] = useState<"db" | "ai" | null>(null);
   const [err, setErr] = useState<string | null>(null);
   const [source, setSource] = useState<string | null>(null);
   const set = (patch: Partial<Product>) => setP((x) => ({ ...x, ...patch }));
@@ -67,7 +66,7 @@ export function ProductEditor({
     });
   };
 
-  // Tier 1: free database (Open Food Facts).
+  // Free database (Open Food Facts) — independent button.
   const searchFree = async () => {
     setErr(null);
     setSource(null);
@@ -75,7 +74,7 @@ export function ProductEditor({
       setErr("Введи название продукта или блюда.");
       return;
     }
-    setPhase("searching");
+    setBusy("db");
     haptic("light");
     try {
       const r = await lookupFreeDb(p.name.trim());
@@ -83,40 +82,43 @@ export function ProductEditor({
         applyResult(r);
         setSource(`Источник: ${r.source}${r.matchedName ? ` · ${r.matchedName}` : ""}`);
         notifySuccess();
-        setPhase("idle");
       } else {
-        // Tier 2: not found — offer the AI fallback
-        setPhase("offerAI");
+        setErr(`В базе не нашлось «${p.name.trim()}». Попробуй ИИ.`);
       }
     } catch {
-      setPhase("offerAI");
+      setErr("База недоступна. Попробуй ИИ или заполни вручную.");
+    } finally {
+      setBusy(null);
     }
   };
 
-  // Tier 2: Anthropic AI, with a plausibility guard → Tier 3 error.
+  // Anthropic AI — independent button, with a plausibility guard.
   const askAI = async () => {
     setErr(null);
+    setSource(null);
     if (!state.apiKey) {
       setErr("Добавь Anthropic API-ключ в Настройках, чтобы пользоваться ИИ.");
       return;
     }
-    setPhase("aiLoading");
+    if (!p.name.trim()) {
+      setErr("Введи название продукта или блюда.");
+      return;
+    }
+    setBusy("ai");
     haptic("light");
     try {
       const r = await lookupNutrition(state.apiKey, p.name.trim());
       if (!isPlausibleNutrition(r)) {
-        // Tier 3: garbage result
         setErr("ИИ не смог распознать продукт. Заполни значения вручную.");
-        setPhase("idle");
         return;
       }
       applyResult(r);
       setSource("Источник: ИИ (оценка)");
       notifySuccess();
-      setPhase("idle");
     } catch (e) {
       setErr(e instanceof Error ? e.message : "Не удалось получить данные");
-      setPhase("idle");
+    } finally {
+      setBusy(null);
     }
   };
 
@@ -221,65 +223,56 @@ export function ProductEditor({
         ))}
       </div>
 
-      {/* Tier 1: free database search */}
-      <button
-        onClick={searchFree}
-        disabled={phase === "searching" || phase === "aiLoading"}
-        style={{
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "center",
-          gap: 8,
-          width: "100%",
-          border: "none",
-          borderRadius: 14,
-          background: "var(--text)",
-          color: "var(--bg)",
-          fontWeight: 900,
-          fontSize: 15,
-          padding: 13,
-          cursor: "pointer",
-          opacity: phase === "searching" ? 0.7 : 1,
-          marginBottom: 8,
-        }}
-      >
-        {phase === "searching" ? "Ищем в базах…" : "Найти по названию"}
-      </button>
-
-      {/* Tier 2: AI fallback, offered only after a DB miss */}
-      {phase === "offerAI" && (
-        <>
-          <div style={{ fontSize: 13, fontWeight: 700, color: "var(--hint)", marginBottom: 8, lineHeight: 1.4 }}>
-            В бесплатных базах не нашлось «{p.name.trim()}». Спросить ИИ?
-          </div>
-          <button
-            onClick={askAI}
-            style={{
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
-              gap: 8,
-              width: "100%",
-              border: "none",
-              borderRadius: 14,
-              background: "linear-gradient(120deg,#F26B7A,#F2994A)",
-              color: "#fff",
-              fontWeight: 900,
-              fontSize: 15,
-              padding: 13,
-              cursor: "pointer",
-              marginBottom: 8,
-              boxShadow: "0 8px 20px -10px rgba(242,107,122,.8)",
-            }}
-          >
-            <Sparkles size={18} color="#fff" />
-            Спросить ИИ
-          </button>
-        </>
-      )}
-      {phase === "aiLoading" && (
-        <div style={{ fontSize: 13, fontWeight: 800, color: ACCENT, marginBottom: 8 }}>ИИ ищет данные…</div>
-      )}
+      {/* Two independent lookups: free database and AI */}
+      <div style={{ display: "flex", gap: 8, marginBottom: 8 }}>
+        <button
+          onClick={searchFree}
+          disabled={busy !== null}
+          style={{
+            flex: 1,
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            gap: 6,
+            border: "1px solid var(--line)",
+            borderRadius: 14,
+            background: "var(--card)",
+            color: "var(--text)",
+            fontWeight: 900,
+            fontSize: 14,
+            padding: 13,
+            cursor: busy ? "default" : "pointer",
+            opacity: busy === "db" ? 0.7 : busy ? 0.5 : 1,
+          }}
+        >
+          <Database size={17} />
+          {busy === "db" ? "Ищем…" : "Найти в базе"}
+        </button>
+        <button
+          onClick={askAI}
+          disabled={busy !== null}
+          style={{
+            flex: 1,
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            gap: 6,
+            border: "none",
+            borderRadius: 14,
+            background: "linear-gradient(120deg,#F26B7A,#F2994A)",
+            color: "#fff",
+            fontWeight: 900,
+            fontSize: 14,
+            padding: 13,
+            cursor: busy ? "default" : "pointer",
+            opacity: busy === "ai" ? 0.8 : busy ? 0.6 : 1,
+            boxShadow: "0 8px 20px -10px rgba(242,107,122,.8)",
+          }}
+        >
+          <Sparkles size={17} color="#fff" />
+          {busy === "ai" ? "Думаем…" : "Через ИИ"}
+        </button>
+      </div>
 
       {err && (
         <div style={{ fontSize: 13, fontWeight: 700, color: "#E0556A", marginBottom: 12, lineHeight: 1.4 }}>
