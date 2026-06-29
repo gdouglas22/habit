@@ -10,6 +10,7 @@ import {
   Sun,
 } from "./icons";
 import { HABIT_COLORS } from "./theme";
+import { todayISO } from "./date";
 import type { Habit, HabitIconKey, HabitType } from "./data";
 
 type IconComp = typeof CheckSquare;
@@ -49,6 +50,7 @@ export function draftHabit(id: string): Habit {
     target: 8,
     unit: "раз",
     days: [0, 1, 2, 3, 4, 5, 6],
+    startDate: todayISO(),
     reminderOn: false,
     reminderTime: "09:00",
   };

@@ -12,6 +12,7 @@ import {
   targetFor,
   nextTapValue,
   isBreak,
+  canCancelBreak,
   breakBudget,
   canTakeBreak,
 } from "../store/selectors";
@@ -191,11 +192,13 @@ function HabitCard({ h, done, progress, progressText, streak, value, onTap, onDe
 // compact card with the remaining monthly budget to start one.
 function BreakSection({
   onBreak,
+  canCancel,
   remaining,
   canBreak,
   onToggle,
 }: {
   onBreak: boolean;
+  canCancel: boolean;
   remaining: number;
   canBreak: boolean;
   onToggle: () => void;
@@ -233,25 +236,39 @@ function BreakSection({
         <div style={{ color: "#fff", flex: 1, minWidth: 0 }}>
           <div style={{ fontSize: 18, fontWeight: 900, lineHeight: 1.1 }}>Каникулы</div>
           <div style={{ fontSize: 13, fontWeight: 700, opacity: 0.9, marginTop: 2 }}>
-            Привычки на паузе — серия сохранится
+            {canCancel ? "Привычки на паузе — серия сохранится" : "Зафиксировано — отменить нельзя"}
           </div>
         </div>
-        <button
-          onClick={onToggle}
-          style={{
-            flex: "none",
-            border: "none",
-            borderRadius: 999,
-            background: "rgba(255,255,255,.25)",
-            color: "#fff",
-            fontWeight: 800,
-            fontSize: 13,
-            padding: "9px 14px",
-            cursor: "pointer",
-          }}
-        >
-          Вернуться
-        </button>
+        {canCancel ? (
+          <button
+            onClick={onToggle}
+            style={{
+              flex: "none",
+              border: "none",
+              borderRadius: 999,
+              background: "rgba(255,255,255,.25)",
+              color: "#fff",
+              fontWeight: 800,
+              fontSize: 13,
+              padding: "9px 14px",
+              cursor: "pointer",
+            }}
+          >
+            Вернуться
+          </button>
+        ) : (
+          <div
+            style={{
+              flex: "none",
+              fontSize: 18,
+              opacity: 0.85,
+              padding: "2px 4px",
+            }}
+            title="Перерыв зафиксирован"
+          >
+            🔒
+          </div>
+        )}
       </div>
     );
   }
@@ -330,6 +347,7 @@ export function Today({
   const allDone = habits.length > 0 && doneCount === habits.length;
 
   const onBreak = isBreak(state.breaks, date);
+  const canCancel = onBreak && canCancelBreak(state.breaks, date, todayISO());
   const d = fromISO(date);
   const budget = breakBudget(
     state.habits,
@@ -341,15 +359,19 @@ export function Today({
   );
   const canBreak = canTakeBreak(budget);
   const toggleBreak = () => {
+    if (onBreak) {
+      // Undo only within the day the break was placed (accidental-tap window).
+      haptic("light");
+      if (canCancel) dispatch({ type: "toggle_break", date });
+      return;
+    }
     // Excusing an already-perfect day makes no sense (and would refund its
-    // earned 0.25, over-spending the budget). Only block *taking* — cancelling
-    // an existing break is always allowed.
-    if (!onBreak && (allDone || !canBreak)) {
+    // earned 0.25, over-spending the budget). Block taking with no budget too.
+    if (allDone || !canBreak) {
       haptic("light");
       return;
     }
-    if (onBreak) haptic("light");
-    else notifySuccess();
+    notifySuccess();
     dispatch({ type: "toggle_break", date });
   };
 
@@ -433,6 +455,7 @@ export function Today({
       {(onBreak || (!allDone && habits.length > 0)) && (
         <BreakSection
           onBreak={onBreak}
+          canCancel={canCancel}
           remaining={Math.max(0, budget.remaining)}
           canBreak={canBreak}
           onToggle={toggleBreak}

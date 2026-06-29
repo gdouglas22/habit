@@ -24,6 +24,7 @@ export interface Habit {
   target?: number; // for count/time
   unit?: string; // for count/time
   days: number[]; // 0..6 (пн..вс)
+  startDate?: string; // ISO day the habit becomes active; not scheduled before it
   reminderOn: boolean;
   reminderTime?: string; // "HH:MM"
   // Pomodoro (only for type "time"): work/break intervals in minutes
@@ -48,6 +49,11 @@ export interface TimerSession {
 
 // habitId -> ISO date -> value (check: 0/1, count/time: amount done that day)
 export type EntryLog = Record<string, Record<string, number>>;
+
+// excused ISO day ("каникулы") -> ISO day the break was placed. The placement
+// day is what gates undo: a break can only be cancelled while it's still that
+// same calendar day, so past breaks can't be retracted to game the system.
+export type BreakLog = Record<string, string>;
 
 // An activity in the user's library: how many kcal it burns per 1 unit
 // (e.g. per minute / per km) for an average adult.

@@ -3,6 +3,7 @@
 import type {
   Habit,
   EntryLog,
+  BreakLog,
   ActivityRow,
   ActivityType,
   FoodEntry,
@@ -141,6 +142,8 @@ export function progressTextOn(entries: EntryLog, h: Habit, date: string): strin
 }
 
 export function isScheduled(h: Habit, date: string): boolean {
+  // A habit doesn't exist before the day it was added — no backdating.
+  if (h.startDate && date < h.startDate) return false;
   return h.days.includes(weekdayMon0(date));
 }
 
@@ -151,7 +154,7 @@ export function scheduledHabits(habits: Habit[], date: string): Habit[] {
 // Consecutive scheduled days (ending at `date`) where the habit was done.
 // Today not-yet-done does not break a streak built on prior days. Break days
 // ("каникулы") are excused — they neither extend nor reset the streak.
-export function streakOn(entries: EntryLog, h: Habit, date: string, breaks: string[] = []): number {
+export function streakOn(entries: EntryLog, h: Habit, date: string, breaks: BreakLog = {}): number {
   let streak = 0;
   let cur = date;
   // Allow today to be incomplete without zeroing the streak.
@@ -192,8 +195,15 @@ export function nextTapValue(h: Habit, current: number): number {
 export const FREE_BREAKS_PER_MONTH = 3;
 export const BREAK_PER_PERFECT_DAY = 0.25;
 
-export function isBreak(breaks: string[], date: string): boolean {
-  return breaks.includes(date);
+export function isBreak(breaks: BreakLog, date: string): boolean {
+  return breaks[date] !== undefined;
+}
+
+// A break can be undone only on the same calendar day it was placed (an
+// accidental-tap window). Once that day passes the break is committed — you can
+// still place new breaks on past dates, but not retract them. Prevents gaming.
+export function canCancelBreak(breaks: BreakLog, date: string, today: string): boolean {
+  return breaks[date] === today;
 }
 
 // A "perfect" day: at least one habit was scheduled and all were done. Break
@@ -201,7 +211,7 @@ export function isBreak(breaks: string[], date: string): boolean {
 export function isPerfectDay(
   habits: Habit[],
   entries: EntryLog,
-  breaks: string[],
+  breaks: BreakLog,
   date: string
 ): boolean {
   if (isBreak(breaks, date)) return false;
@@ -219,7 +229,7 @@ function isoInMonth(iso: string, year: number, month0: number): boolean {
 export function perfectDaysInMonth(
   habits: Habit[],
   entries: EntryLog,
-  breaks: string[],
+  breaks: BreakLog,
   year: number,
   month0: number,
   today: string
@@ -246,7 +256,7 @@ export interface BreakBudget {
 export function breakBudget(
   habits: Habit[],
   entries: EntryLog,
-  breaks: string[],
+  breaks: BreakLog,
   year: number,
   month0: number,
   today: string
@@ -254,7 +264,7 @@ export function breakBudget(
   const perfect = perfectDaysInMonth(habits, entries, breaks, year, month0, today);
   const earned = perfect * BREAK_PER_PERFECT_DAY;
   const allowance = FREE_BREAKS_PER_MONTH + earned;
-  const used = breaks.filter((d) => isoInMonth(d, year, month0)).length;
+  const used = Object.keys(breaks).filter((d) => isoInMonth(d, year, month0)).length;
   return { perfect, earned, allowance, used, remaining: allowance - used };
 }
 

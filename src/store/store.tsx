@@ -18,11 +18,12 @@ import {
   type Product,
   type FoodEntry,
   type EntryLog,
+  type BreakLog,
   type Profile,
   type TimerSession,
 } from "../data";
 import { todayISO } from "../date";
-import { nextTapValue, valueOn } from "./selectors";
+import { nextTapValue, valueOn, isBreak, canCancelBreak } from "./selectors";
 import { loadRaw, saveRaw } from "./storage";
 import { migrate } from "./migrate";
 import { canSync, fetchRemote, pushRemote } from "./sync";
@@ -34,7 +35,7 @@ export interface AppState {
   products: Product[]; // product/dish database
   foods: FoodEntry[]; // diary meals
   entries: EntryLog;
-  breaks: string[]; // ISO dates marked as a habit break ("каникулы")
+  breaks: BreakLog; // excused day -> day it was placed ("каникулы")
   selectedDate: string; // ISO; the "current" calendar day in the UI
   apiKey?: string; // Anthropic key for AI lookup (device-local, not synced)
   profile: Profile; // user data (age, weight, height, sex, …)
@@ -49,7 +50,7 @@ const initialState: AppState = {
   products: PRODUCTS,
   foods: FOODS,
   entries: ENTRIES,
-  breaks: [],
+  breaks: {},
   selectedDate: todayISO(),
   profile: {},
   timer: null,
@@ -101,13 +102,15 @@ function reducer(state: AppState, action: Action): AppState {
         entries: setEntry(state.entries, action.id, action.date, Math.max(0, action.value)),
       };
     case "toggle_break": {
-      const has = state.breaks.includes(action.date);
-      return {
-        ...state,
-        breaks: has
-          ? state.breaks.filter((d) => d !== action.date)
-          : [...state.breaks, action.date],
-      };
+      const today = todayISO();
+      if (isBreak(state.breaks, action.date)) {
+        // Undo is only allowed on the day the break was placed.
+        if (!canCancelBreak(state.breaks, action.date, today)) return state;
+        const breaks = { ...state.breaks };
+        delete breaks[action.date];
+        return { ...state, breaks };
+      }
+      return { ...state, breaks: { ...state.breaks, [action.date]: today } };
     }
     case "select_date":
       return { ...state, selectedDate: action.date };
